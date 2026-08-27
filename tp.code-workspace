@@ -1,0 +1,32 @@
+{
+  "folders": [
+    {
+      "name": "planificador",
+      "path": "planificador"
+    },
+    {
+      "name": "core",
+      "path": "core"
+    },
+    {
+      "name": "placa",
+      "path": "placa"
+    },
+    {
+      "name": "storage",
+      "path": "storage"
+    },
+    {
+      "name": "utils",
+      "path": "utils"
+    }
+  ],
+  "settings": {
+    "debug.onTaskErrors": "abort",
+    "files.associations": {
+      "*.h": "c"
+    },
+    "C_Cpp.autoAddFileAssociations": false,
+    "C_Cpp.errorSquiggles": "disabled"
+  }
+}
