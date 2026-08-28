@@ -14,4 +14,9 @@ storage_logger = log_create ("storage.log", "STORAGE", true, LOG_LEVEL_INFO); //
     perror("Error al iniciar el logger de storage");
     return EXIT_FAILURE;
  }
+ // cargo configuracion
+ if(cargar_configuracion(argv[1]!=0)) // argv [1]arreglo de strings en este caso ubicado en la posicion 1
+ log_error(storage_logger, "No se pudo cargar el archivo: %s", argv[1]);
+ log_destroy(storage_logger);
+ return EXIT_FAILURE;
 }
