@@ -10,6 +10,7 @@
 #include<string.h>
 #include<commons/log.h>
 #include <utils/protocolo.h>
+#include <commons/config.h>
 
 /**
 * @brief Imprime un saludo por consola
@@ -20,6 +21,7 @@
 void saludar(char* quien);
 
 extern t_log *logger;
+extern t_config* config;
 
 int iniciar_servidor(char *puerto);
 int crear_conexion(char *ip, char *puerto);
