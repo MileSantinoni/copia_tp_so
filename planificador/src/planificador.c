@@ -1,10 +1,21 @@
 // #include <planificador/src/cliente.h>
-#include <servidor.h>
+#include "servidor.h"
+#include "planificador.h"
+
+#include <stdlib.h>
+#include <pthread.h>
+
+#include <commons/config.h>
+#include <commons/log.h>
+#include <commons/collections/list.h>
+
+#include <utils/conexion.h>
+#include <utils/comunicacion.h>
+#include <utils/protocolo.h>
 
 // Varibales de configuracion
 
 t_log *logger;
-t_log_level log_level;
 t_config *config;
 
 // Variables de conexión
@@ -30,7 +41,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    log_level = log_level_from_string(config_get_string_value(config, "LOG_LEVEL"));
+    t_log_level log_level = log_level_from_string(config_get_string_value(config, "LOG_LEVEL"));
     logger = log_create("planificador.log", "Planificador", 1, log_level);
 
     /*if (logger == NULL)

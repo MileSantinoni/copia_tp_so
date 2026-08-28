@@ -1,4 +1,17 @@
-#include <servidor.h>
+#include "servidor.h"
+#include "planificador.h"
+
+#include <stdlib.h>
+#include <pthread.h>
+
+#include <commons/config.h>
+#include <commons/log.h>
+#include <commons/collections/list.h>
+
+#include <utils/conexion.h>
+#include <utils/comunicacion.h>
+#include <utils/protocolo.h>
+#include <utils/util.h>
 
 /*t_log *logger;
 t_config *config;*/
@@ -7,8 +20,8 @@ void iniciar_conexion_como_servidor()
 {
 
     // Obtenemos las configuraciones necesarias del archivo connfig
-
     char *puerto_escucha = config_get_string_value(config, "PUERTO_ESCUCHA");
+
     int socket_planificador = iniciar_servidor(puerto_escucha);
 
     if (socket_planificador < 0)
@@ -18,6 +31,8 @@ void iniciar_conexion_como_servidor()
         log_destroy(logger);
         exit(EXIT_FAILURE);
     }
+
+    log_info(logger, "Planificador listo, esperando clientes");
 
     while (1)
     {
@@ -40,7 +55,6 @@ void iniciar_conexion_como_servidor()
         pthread_create(&thread, NULL, atender_core, fd_ptr);
         pthread_detach(thread);
     }
-
 }
 
 void *atender_core(void *arg)
@@ -72,7 +86,16 @@ void *atender_core(void *arg)
     if (modulo != CORE)
     {
         log_error(logger, "El modulo %i no corresponde como cliente de Planificador", modulo);
+        list_destroy_and_destroy_elements(paquete_recibido, free);
+        close(socket_core);
+        return NULL;
     }
+
+    char* modulo_s = modulo_a_string(modulo);
+
+    log_info(logger,"Conexión recibida: ## Módulo: %s", modulo_s);
+
+    list_destroy_and_destroy_elements(paquete_recibido, free);
 
     int codigo_operacion = recibir_operacion(socket_core);
 
