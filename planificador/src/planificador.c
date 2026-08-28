@@ -1,4 +1,4 @@
-// #include <planificador/src/cliente.h>
+#include <cliente.h>
 #include <servidor.h>
 
 // Varibales de configuracion
@@ -40,7 +40,8 @@ int main(int argc, char *argv[])
     }*/
 
     // Parte cliente
-
+    iniciar_conexiones(config);
+    iniciar_hilo_escucha();
 
     // Parte servidor
 
