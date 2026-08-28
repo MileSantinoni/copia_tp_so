@@ -1,5 +1,5 @@
-// #include <planificador/src/cliente.h>
 #include "servidor.h"
+#include "cliente.h"
 #include "planificador.h"
 
 #include <stdlib.h>
@@ -44,14 +44,15 @@ int main(int argc, char *argv[])
     t_log_level log_level = log_level_from_string(config_get_string_value(config, "LOG_LEVEL"));
     logger = log_create("planificador.log", "Planificador", 1, log_level);
 
-    /*if (logger == NULL)
+    if (logger == NULL)
     {
         printf("Error en la creación el logger");
         exit(EXIT_FAILURE);
-    }*/
+    }
 
     // Parte cliente
-
+    iniciar_conexiones(config);
+    iniciar_hilo_escucha();
 
     // Parte servidor
 

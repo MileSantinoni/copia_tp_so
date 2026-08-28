@@ -1,8 +1,6 @@
 #include <utils/util.h>
 #include <utils/protocolo.h>
 
-
-
 char* modulo_a_string(int modulo){
 
     char* respuesta;

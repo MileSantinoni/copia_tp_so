@@ -1,5 +1,5 @@
-#ifndef PLANIFFICADOR_H_
-#define PLANIFFICADOR_H_
+#ifndef PLANIFICADOR_H_
+#define PLANIFICADOR_H_
 
 #include <commons/config.h>
 #include <commons/log.h>

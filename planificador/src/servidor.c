@@ -13,8 +13,6 @@
 #include <utils/protocolo.h>
 #include <utils/util.h>
 
-/*t_log *logger;
-t_config *config;*/
 
 void iniciar_conexion_como_servidor()
 {
@@ -93,7 +91,7 @@ void *atender_core(void *arg)
 
     char* modulo_s = modulo_a_string(modulo);
 
-    log_info(logger,"Conexión recibida: ## Módulo: %s", modulo_s);
+    log_info(logger,"## Módulo: %s", modulo_s);
 
     list_destroy_and_destroy_elements(paquete_recibido, free);
 
