@@ -1,0 +1,171 @@
+#include "placa.h"
+
+// Definición de las variables globales declaradas como extern en el .h
+t_log* logger;
+t_config* config_archivo;
+t_config_placa config_valores;
+
+int main(int argc, char* argv[])
+{
+    char* path_config = (argc > 1) ? argv[1] : "placa.config";
+
+    inicializar_placa(path_config);
+
+    int socket_servidor = inicia_servidor_placa(config_valores.puerto_escucha);
+
+    log_info(logger, "## Placa lista para recibir conexiones - Puerto: %s", config_valores.puerto_escucha);
+
+    esperar_conexiones(socket_servidor);
+
+    terminar_placa();
+
+    return 0;
+}
+
+void inicializar_placa(char* path_config)
+{
+    config_archivo = config_create(path_config);
+    if (config_archivo == NULL)
+    {
+        printf("No se pudo abrir el archivo de configuración: %s\n", path_config);
+        exit(EXIT_FAILURE);
+    }
+
+    // Cargamos los valores del config a nuestra estructura
+    config_valores.puerto_escucha      = config_get_string_value(config_archivo, "PUERTO_ESCUCHA");
+    config_valores.log_level           = config_get_string_value(config_archivo, "LOG_LEVEL");
+    config_valores.tam_memoria         = config_get_int_value(config_archivo, "TAM_MEMORIA");
+    config_valores.tam_pagina          = config_get_int_value(config_archivo, "TAM_PAGINA");
+    config_valores.retardo_memoria     = config_get_int_value(config_archivo, "RETARDO_MEMORIA");
+    config_valores.algoritmo_reemplazo = config_get_string_value(config_archivo, "ALGORITMO_REEMPLAZO");
+    config_valores.path_instrucciones  = config_get_string_value(config_archivo, "PATH_INSTRUCCIONES");
+    config_valores.path_offload        = config_get_string_value(config_archivo, "PATH_OFFLOAD");
+    config_valores.tam_offload         = config_get_int_value(config_archivo, "TAM_OFFLOAD");
+    config_valores.retardo_offload     = config_get_int_value(config_archivo, "RETARDO_OFFLOAD");
+
+    logger = log_create("placa.log", "PLACA", true, log_level_from_string(config_valores.log_level));
+    if (logger == NULL)
+    {
+        printf("No se pudo crear el logger\n");
+        exit(EXIT_FAILURE);
+    }
+}
+
+int inicia_servidor_placa(char* puerto)
+{
+    struct addrinfo hints, *server_info;
+
+    memset(&hints, 0, sizeof(hints));
+    hints.ai_family = AF_UNSPEC;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_flags = AI_PASSIVE; // Para usar la propia IP
+
+    getaddrinfo(NULL, puerto, &hints, &server_info);
+
+    int socket_servidor = socket(server_info->ai_family, server_info->ai_socktype, server_info->ai_protocol);
+
+    // Evita el error "Address already in use" al reiniciar rápido
+    int yes = 1;
+    setsockopt(socket_servidor, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
+
+    if (bind(socket_servidor, server_info->ai_addr, server_info->ai_addrlen) != 0)
+    {
+        log_error(logger, "## Error al bindear el socket en el puerto %s", puerto);
+        exit(EXIT_FAILURE);
+    }
+
+    freeaddrinfo(server_info);
+
+    if (listen(socket_servidor, SOMAXCONN) != 0)
+    {
+        log_error(logger, "## Error al escuchar en el socket");
+        exit(EXIT_FAILURE);
+    }
+
+    return socket_servidor;
+}
+
+void esperar_conexiones(int socket_servidor)
+{
+    while (1)
+    {
+        int socket_cliente = accept(socket_servidor, NULL, NULL);
+
+        if (socket_cliente == -1)
+            continue;
+
+        int* socket_ptr = malloc(sizeof(int));
+        *socket_ptr = socket_cliente;
+
+        pthread_t hilo_cliente;
+        pthread_create(&hilo_cliente, NULL, atender_cliente, socket_ptr);
+        pthread_detach(hilo_cliente);
+    }
+}
+
+void* atender_cliente(void* arg)
+{
+    int socket_cliente = *(int*)arg;
+    free(arg);
+
+    while (1)
+    {
+        t_paquete* paquete = recibir_paquete(socket_cliente);
+
+        if (paquete == NULL)
+        {
+            log_info(logger, "## Cliente desconectado");
+            break;
+        }
+
+        switch (paquete->codigo_operacion)
+        {
+            case HANDSHAKE_CORE:
+                log_info(logger, "## Handshake recibido: Módulo CORE");
+                enviar_mensaje("HANDSHAKE_OK", socket_cliente);
+                break;
+
+            case HANDSHAKE_PLANIFICADOR:
+                log_info(logger, "## Handshake recibido: Módulo PLANIFICADOR");
+                enviar_mensaje("HANDSHAKE_OK", socket_cliente);
+                break;
+
+            case MENSAJE:
+            {
+                // El texto está después del entero de tamaño (payload + 4 bytes)
+                char* texto = (char*)(paquete->payload + sizeof(uint32_t));
+                log_info(logger, "## Mensaje recibido: %s", texto);
+
+                // Confirmación simple de vuelta al cliente
+                enviar_mensaje("CONFIRMACION_RECIBIDA", socket_cliente);
+                break;
+            }
+
+            case PAQUETE_PRUEBA:
+            {
+                log_info(logger, "## Paquete con datos recibido");
+
+                t_paquete* respuesta = crear_paquete(PAQUETE_PRUEBA);
+                agregar_string_a_paquete(respuesta, "ack desde la placa");
+                enviar_paquete(respuesta, socket_cliente);
+                eliminar_paquete(respuesta);
+                break;
+            }
+
+            default:
+                log_warning(logger, "## Código de operación desconocido: %d", paquete->codigo_operacion);
+                break;
+        }
+
+        eliminar_paquete(paquete);
+    }
+
+    close(socket_cliente);
+    return NULL;
+}
+
+void terminar_placa(void)
+{
+    log_destroy(logger);
+    config_destroy(config_archivo);
+}

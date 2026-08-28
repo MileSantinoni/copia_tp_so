@@ -10,15 +10,15 @@
 #include <unistd.h>
 #include <sys/socket.h>
 #include <netdb.h>
-#include <commons/log.h>
-#include <commons/config.h>
 #include <arpa/inet.h>
 #include <sys/types.h>
-#include "utils.h"
 
+#include <commons/log.h>
+#include <commons/config.h>
 
-//Estructura para guardar la configuracion
+#include "protocolo.h"
 
+// Estructura para guardar la configuracion
 typedef struct 
 {
     char* puerto_escucha;
@@ -31,21 +31,18 @@ typedef struct
     char* path_offload;
     int tam_offload;
     int retardo_offload;
-}t_config_placa;
+} t_config_placa;
 
-//Variables Globales
+// Variables Globales
 extern t_log* logger;
 extern t_config* config_archivo;
 extern t_config_placa config_valores;
 
-//Prototipo de funciones
-void inicialiizar_placa(char* path_config);
+// Prototipos de funciones
+void inicializar_placa(char* path_config);
 int inicia_servidor_placa(char* puerto);
 void esperar_conexiones(int socket_servidor);
-void atender_cliente(void* arg);
+void* atender_cliente(void* arg);
 void terminar_placa(void);
-void* recibir_paquete(int socket);
-void enviar_paquete(t_paquete* paquete, int socket);
 
-
-#endif
+#endif /* PLACA_H_ */
