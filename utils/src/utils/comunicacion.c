@@ -6,8 +6,6 @@ void crear_buffer(t_paquete *paquete){
 	paquete->buffer->stream = NULL;
 }
 
-
-
 t_paquete *crear_paquete(op_code codigo_operacion){
 	t_paquete *paquete = malloc(sizeof(t_paquete));
 	paquete->codigo_operacion = codigo_operacion;
@@ -143,4 +141,7 @@ char *recibir_nombre(int socket_cliente){
 	return nombre;
 }
 
-
+void saludar(char* quien)
+{
+    printf("Hola %s\n", quien);
+}

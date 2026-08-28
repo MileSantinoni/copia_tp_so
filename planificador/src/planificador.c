@@ -1,19 +1,50 @@
-#include <planificador/src/cliente.h>
-#include <planificador/src/servidor.h>
+// #include <planificador/src/cliente.h>
+#include <servidor.h>
 
-int socket_core;
+// Varibales de configuracion
 
-int main(int argc, char* argv[]) {
+t_log *logger;
+t_log_level log_level;
+t_config *config;
+
+// Variables de conexión
+
+// int socket_core;
+
+int main(int argc, char *argv[])
+{
 
     saludar("planificador");
 
-    // Parte cliente 
+    if (argc < 3)
+    {
+        printf("Uso correcto: ./bin/planificador [Archivo Config] [Path Job Inicial]\n");
+        exit(EXIT_FAILURE);
+    }
 
+    config = config_create(argv[1]);
 
+    if (config == NULL)
+    {
+        printf("No se pudo cargar el config en la ruta: %s\n", argv[1]);
+        exit(EXIT_FAILURE);
+    }
+
+    log_level = log_level_from_string(config_get_string_value(config, "LOG_LEVEL"));
+    logger = log_create("planificador.log", "Planificador", 1, log_level);
+
+    /*if (logger == NULL)
+    {
+        printf("Error en la creación el logger");
+        exit(EXIT_FAILURE);
+    }*/
+
+    // Parte cliente
 
 
     // Parte servidor
-    // socket_core = iniciar_conexion_como_servidor();
+
+    iniciar_conexion_como_servidor();
 
     return 0;
 }
