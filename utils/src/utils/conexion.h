@@ -18,10 +18,10 @@
 * @return No devuelve nada
 */
 
-void saludar(char* quien);
-
 extern t_log *logger;
-extern t_config* config;
+extern t_config *config;
+
+void saludar(char* quien);
 
 int iniciar_servidor(char *puerto);
 int crear_conexion(char *ip, char *puerto);
