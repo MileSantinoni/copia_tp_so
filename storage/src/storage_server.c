@@ -29,4 +29,14 @@ int iniciar_servidor_storage(Void){
     int optval = 1; // habilitar opcion  (true)
     setsockopt(socket_servidor, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
 
+    // enlazamos el socket al puerto configurado
+    if(bind(socket_servidor, servinfo -> ai_addr, servinfo-> ai_addrlen)== -1){
+        log_error(storage_logger, "Eror en bind al puerto %s", storage_config -> PUERTO_ESCUCHA);
+        close(socket_servidor);
+        freeaddrinfo(servinfo);
+        return -1;
+    }
+
+// 
+
 }
