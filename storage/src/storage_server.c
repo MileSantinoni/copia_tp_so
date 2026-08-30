@@ -52,3 +52,17 @@ if (listen(socket_servidor, SOMAXCONN)== -1){ // somaxconn define un tamaño max
   return socket_servidor;
 
 }
+
+void esperar_cliente_storage (int server_fd){
+    while(1){ // Bucle que se ejecuta siempre 
+    int * socket_cliente= malloc(sizeof(int));
+    *socket_cliente = accept (server_fd, NULL, NULL);
+
+    if (*socket_cliente == -1){
+        log_error(storage_logger, "Error al aceptar un nuevo cliente: ");
+        free (socket_cliente);
+        continue;
+    }
+
+    } 
+}
