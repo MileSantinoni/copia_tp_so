@@ -37,6 +37,12 @@ int iniciar_servidor_storage(Void){
         return -1;
     }
 
-// 
+// ponemos al socket en modo de escucha pasiva
+if (listen(socket_servidor, SOMAXCONN)== -1){ // somaxconn define un tamaño maximo en la cola de espera de conexiones pendientes
+ log_error(storage_logger, "error en listen en el puerto %s", storage_config -> PUERTO_ESCUCHA);
+ close(socket_servidor);
+ freeaddrinfo(servinfo);
+ return -1;
+}
 
 }
