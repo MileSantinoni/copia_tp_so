@@ -45,4 +45,10 @@ if (listen(socket_servidor, SOMAXCONN)== -1){ // somaxconn define un tamaño max
  return -1;
 }
 
+ // libero la memoria reservada para getaddrinfo
+  freeaddrinfo(servinfo);
+
+  log_info(storage_logger, "servidor listo y escuchando al puerto % s", storage_config -> PUERTO_ESCUCHA);
+  return socket_servidor;
+
 }
