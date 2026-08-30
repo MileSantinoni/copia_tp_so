@@ -63,6 +63,10 @@ void esperar_cliente_storage (int server_fd){
         free (socket_cliente);
         continue;
     }
+    pthread_t hilo_cliente; // identificador del hilo creado
+    pthread_create (&hilo_cliente, NULL, atender_cliente_storage, socket_cliente); //crear y arrancar el hilo en 2do plano
+    pthread_detach(hilo_cliente); // cuando este hilo termine de atendere al cliente hacer return y liberar memoria
+
 
     } 
 }
