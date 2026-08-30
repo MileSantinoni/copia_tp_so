@@ -5,7 +5,7 @@
 #include <netdb.h>
 #include <string.h>
 
-int iniciar_servidor_storage(Void){
+int iniciar_servidor_storage(void){
     int socket_servidor;
     struct addrinfo  hints, *servinfo;
     // inicializo en 0 los criterios para direccion de red
