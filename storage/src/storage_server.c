@@ -67,6 +67,18 @@ void esperar_cliente_storage (int server_fd){
     pthread_create (&hilo_cliente, NULL, atender_cliente_storage, socket_cliente); //crear y arrancar el hilo en 2do plano
     pthread_detach(hilo_cliente); // cuando este hilo termine de atendere al cliente hacer return y liberar memoria
 
-
     } 
+}
+
+// atencion a los clientes conectados
+
+void * atender_cliente_storage(void *arg){
+    int * puntero_socket = (int *)arg; // convierto el puntero generico a void
+    //extraemos el valor de dicho socket
+    int socket_cliente = * puntero_socket;
+    // libero la memoria dinamica reservada en malloc
+    free(puntero_socket);
+    log_info(storage_logger, "Modulo conectado a storage");
+    close(socket_cliente);
+    return NULL;
 }
