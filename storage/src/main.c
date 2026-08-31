@@ -22,7 +22,21 @@ storage_logger = log_create ("storage.log", "STORAGE", true, LOG_LEVEL_INFO); //
 }
 log_info (storage_logger, "configuracion cargada con exito en puerto: %s", storage_config -> PUERTO_ESCUCHA);
 
+
+// arranque del servidor 
+int server_fd = iniciar_servidor_storage();
+if (server_fd == -1){
+    log_error(storage_logger, "Error no se pudo levantar el servidor");
+    destruir_configuracion();
+    log_destroy(storage_logger);
+    return EXIT_FAILURE;
+}
+
+// bucle para aceptar conexiones y lanzar hilos
+esperar_cliente_storage(server_fd);
+
 // limpieza final
+close(server_fd);
 destruir_configuracion();
 log_destroy(storage_logger);
 return EXIT_SUCCESS;
