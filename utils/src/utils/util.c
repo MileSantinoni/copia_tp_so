@@ -29,6 +29,19 @@ char* modulo_a_string(int modulo){
     return respuesta; 
 }
 
+t_modulo enviar_handshake(int socket_cliente){
+
+    // Falta implementar
+
+}
+
+t_modulo recibir_handshake(int socket_cliente){
+
+   
+    // Falta implementar
+
+}
+
 
 void terminar_modulo(void)
 {

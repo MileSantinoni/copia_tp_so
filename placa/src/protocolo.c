@@ -1,6 +1,7 @@
 #include "protocolo.h"
 
-t_paquete* crear_paquete(op_code codigo)
+// Esto ya esta en utils, no deberia estar aca
+/*t_paquete* crear_paquete(op_code codigo)
 {
     t_paquete* paquete = malloc(sizeof(t_paquete));
     paquete->codigo_operacion = codigo;
@@ -103,4 +104,4 @@ char* recibir_mensaje(int socket_cliente)
     char* mensaje = strdup((char*)(paquete->payload + sizeof(uint32_t)));
     eliminar_paquete(paquete);
     return mensaje;
-}
+}*/

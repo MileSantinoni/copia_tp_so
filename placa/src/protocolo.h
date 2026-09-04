@@ -16,7 +16,7 @@
     HANDSHAKE_PLACA,
     HANDSHAKE_STORAGE,
     PAQUETE_PRUEBA
-} op_code; --> mesajes generales que usamos todos van en utils para no repertir codigo y q sea consistente*/
+} op_code; --> mesajes generales que usamos todos van en utils para no repertir codigo y q sea consistente
 
 typedef struct
 {
@@ -35,6 +35,6 @@ void agregar_a_paquete(t_paquete* paquete, void* valor, uint32_t tamanio);
 void agregar_string_a_paquete(t_paquete* paquete, char* string);
 void enviar_paquete(t_paquete* paquete, int socket_cliente);
 t_paquete* recibir_paquete(int socket_cliente);
-void eliminar_paquete(t_paquete* paquete);
+void eliminar_paquete(t_paquete* paquete);*/
 
 #endif /* PROTOCOLO_H_ */

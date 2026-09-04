@@ -7,8 +7,11 @@
 
 // Definición de las variables globales declaradas como extern en el .h
 t_log* logger;
-t_config* config_archivo;
+t_config* config;
 t_config_placa config_valores;
+
+int socket_core;
+int socket_planificador;
 
 int main(int argc, char* argv[])
 {
@@ -16,7 +19,8 @@ int main(int argc, char* argv[])
 
     inicializar_placa(path_config);
 
-    int socket_servidor = inicia_servidor_placa(config_valores.puerto_escucha);
+   // int socket_servidor = inicia_servidor_placa(config_valores.puerto_escucha); --> puse iniciar servviddor para no repetir codigo al pedo 
+    int socket_servidor = iniciar_servidor(config_valores.puerto_escucha); 
 
     log_info(logger, "## Placa lista para recibir conexiones - Puerto: %s", config_valores.puerto_escucha);
 
@@ -29,24 +33,24 @@ int main(int argc, char* argv[])
 
 void inicializar_placa(char* path_config)
 {
-    config_archivo = config_create(path_config);
-    if (config_archivo == NULL)
+    config = config_create(path_config);
+    if (config == NULL)
     {
         printf("No se pudo abrir el archivo de configuración: %s\n", path_config);
         exit(EXIT_FAILURE);
     }
 
     // Cargamos los valores del config a nuestra estructura
-    config_valores.puerto_escucha      = config_get_string_value(config_archivo, "PUERTO_ESCUCHA");
-    config_valores.log_level           = config_get_string_value(config_archivo, "LOG_LEVEL");
-    config_valores.tam_memoria         = config_get_int_value(config_archivo, "TAM_MEMORIA");
-    config_valores.tam_pagina          = config_get_int_value(config_archivo, "TAM_PAGINA");
-    config_valores.retardo_memoria     = config_get_int_value(config_archivo, "RETARDO_MEMORIA");
-    config_valores.algoritmo_reemplazo = config_get_string_value(config_archivo, "ALGORITMO_REEMPLAZO");
-    config_valores.path_instrucciones  = config_get_string_value(config_archivo, "PATH_INSTRUCCIONES");
-    config_valores.path_offload        = config_get_string_value(config_archivo, "PATH_OFFLOAD");
-    config_valores.tam_offload         = config_get_int_value(config_archivo, "TAM_OFFLOAD");
-    config_valores.retardo_offload     = config_get_int_value(config_archivo, "RETARDO_OFFLOAD");
+    config_valores.puerto_escucha      = config_get_string_value(config, "PUERTO_ESCUCHA");
+    config_valores.log_level           = config_get_string_value(config, "LOG_LEVEL");
+    config_valores.tam_memoria         = config_get_int_value(config, "TAM_MEMORIA");
+    config_valores.tam_pagina          = config_get_int_value(config, "TAM_PAGINA");
+    config_valores.retardo_memoria     = config_get_int_value(config, "RETARDO_MEMORIA");
+    config_valores.algoritmo_reemplazo = config_get_string_value(config, "ALGORITMO_REEMPLAZO");
+    config_valores.path_instrucciones  = config_get_string_value(config, "PATH_INSTRUCCIONES");
+    config_valores.path_offload        = config_get_string_value(config, "PATH_OFFLOAD");
+    config_valores.tam_offload         = config_get_int_value(config, "TAM_OFFLOAD");
+    config_valores.retardo_offload     = config_get_int_value(config, "RETARDO_OFFLOAD");
 
     logger = log_create("placa.log", "PLACA", true, log_level_from_string(config_valores.log_level));
     if (logger == NULL)
@@ -108,14 +112,32 @@ void esperar_conexiones(int socket_servidor)
     }
 }
 
-/*void* atender_cliente(void* arg)
+void* atender_cliente(void* arg)
 {
     int socket_cliente = *(int*)arg;
     free(arg);
 
+    t_modulo modulo = recibir_handshake(socket_cliente);
+    
+    switch (modulo)
+    {
+    case CORE:
+        log_info(logger, "Se conecto un CORE");
+        break;
+    case PLANIFICADOR:
+        
+        log_info(logger, "Se conecto el PLANIFICADOR");
+        break;
+   
+    default:
+        break;
+    }
+
+
+
     while (1)
     {
-        t_paquete* paquete = recibir_paquete(socket_cliente);
+        t_list* paquete = recibir_paquete(socket_cliente);
 
         if (paquete == NULL)
         {
@@ -123,7 +145,7 @@ void esperar_conexiones(int socket_servidor)
             break;
         }
 
-        switch (paquete->codigo_operacion)
+        /*switch (paquete->codigo_operacion)
         {
             case HANDSHAKE_CORE:
                 log_info(logger, "## Handshake recibido: Módulo CORE");
@@ -162,9 +184,9 @@ void esperar_conexiones(int socket_servidor)
                 break;
         }
 
-        eliminar_paquete(paquete);
+        eliminar_paquete(paquete);*/
     }
 
     close(socket_cliente);
     return NULL;
-}*/
+}
