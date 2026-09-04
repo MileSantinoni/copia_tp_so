@@ -28,131 +28,6 @@ static void enviar_handshake_placa(void)
     log_info(logger, "Handshake de Planificador enviado a Placa");
 }
 
-static int recibir_paquete_placa(int socket, int* codigo_operacion,
-                                 uint32_t* tamanio_payload, void** payload)
-{
-    *payload = NULL;
-
-    int resultado = recv(
-        socket,
-        codigo_operacion,
-        sizeof(*codigo_operacion),
-        MSG_WAITALL
-    );
-
-    if (resultado <= 0)
-        return -1;
-
-    resultado = recv(
-        socket,
-        tamanio_payload,
-        sizeof(*tamanio_payload),
-        MSG_WAITALL
-    );
-
-    if (resultado <= 0)
-        return -1;
-
-    if (*tamanio_payload > 0)
-    {
-        *payload = malloc(*tamanio_payload);
-
-        if (*payload == NULL)
-        {
-            log_error(logger, "No se pudo reservar memoria para el paquete");
-            return -1;
-        }
-
-        resultado = recv(
-            socket,
-            *payload,
-            *tamanio_payload,
-            MSG_WAITALL
-        );
-
-        if (resultado <= 0)
-        {
-            free(*payload);
-            *payload = NULL;
-            return -1;
-        }
-    }
-
-    return 0;
-}
-
-
-/*
- * Procesa un paquete recibido desde Placa.
- */
-static void procesar_paquete_placa(void)
-{
-    int codigo_operacion;
-    uint32_t tamanio_payload;
-    void* payload = NULL;
-
-    if (recibir_paquete_placa(
-            socket_placa,
-            &codigo_operacion,
-            &tamanio_payload,
-            &payload) == -1)
-    {
-        log_warning(logger, "Placa se desconectó");
-        close(socket_placa);
-        socket_placa = -1;
-        return;
-    }
-
-    switch (codigo_operacion)
-    {
-        case MENSAJE:
-        {
-            if (payload == NULL || tamanio_payload < sizeof(uint32_t))
-            {
-                log_warning(logger, "Mensaje inválido recibido desde Placa");
-                break;
-            }
-
-            uint32_t tamanio_mensaje;
-
-            memcpy(
-                &tamanio_mensaje,
-                payload,
-                sizeof(uint32_t)
-            );
-
-            if (tamanio_mensaje > 0 &&
-                sizeof(uint32_t) + tamanio_mensaje <= tamanio_payload)
-            {
-                char* mensaje =
-                    (char*)payload + sizeof(uint32_t);
-
-                log_info(
-                    logger,
-                    "Mensaje recibido de Placa: %s",
-                    mensaje
-                );
-            }
-
-            break;
-        }
-
-        default:
-        {
-            log_warning(
-                logger,
-                "Código de operación desconocido recibido de Placa: %d",
-                codigo_operacion
-            );
-
-            break;
-        }
-    }
-
-    free(payload);
-}
-
-
 //Inicializa las conexiones del Planificador con Placa y Storage.
 void iniciar_conexiones(t_config* config)
 {
@@ -232,11 +107,12 @@ void* escuchar_placa_storage(void* arg){//args no se usan, pero son necesarios p
 
           if (FD_ISSET(socket_placa, &sockets)){
             log_info(logger, "Hay datos disponibles desde Placa");
-            procesar_paquete_placa();
+            recibir_paquete(socket_placa);
           }
 
          if (FD_ISSET(socket_storage, &sockets)){
             log_info(logger, "Hay datos disponibles desde Storage");    
+            recibir_paquete(socket_storage);
          }
 
   }
