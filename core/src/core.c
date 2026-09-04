@@ -1,20 +1,22 @@
-#include "core.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+
 #include <commons/log.h>
 #include <commons/config.h>
 #include <commons/string.h>
 
+#include "core.h"
 #include "conexiones.h"
 #include <utils/conexion.h>
 #include <utils/comunicacion.h>
 #include <utils/protocolo.h>
+#include <utils/util.h>
 
-#include "conexiones.h"
 
 
 t_log *logger = NULL;
+t_config* config = NULL; 
 
 
 int main(int argc, char* argv[]) {
@@ -28,7 +30,7 @@ int main(int argc, char* argv[]) {
     char* id_core = argv[2]; //y el id del core el 2do
 
     
-    t_config* config = config_create(path_config);
+    config = config_create(path_config);
     if (config == NULL) {
         perror("Error al abrir el archivo de configuracion");
         return EXIT_FAILURE;
@@ -63,27 +65,19 @@ int main(int argc, char* argv[]) {
     // conecta al planificador
     int socket_planificador = conectar_con_planificador(ip_planificador, puerto_planificador);
     if (socket_planificador == -1) {
-        config_destroy(config);
-        log_destroy(logger);
+        terminar_modulo();
         return EXIT_FAILURE;
     }
-
-    enviar_handshake_core(socket_planificador);
     
-    log_info(logger, "## Conectado a Planificador exitosamente");
 
     // conectar a la placa
     int socket_placa = conectar_con_placa(ip_placa, puerto_placa);
     if (socket_placa == -1) {
         liberar_conexion(socket_planificador);
-        config_destroy(config);
-        log_destroy(logger);
+        terminar_modulo();
         return EXIT_FAILURE;
     }
 
-    enviar_handshake_core(socket_placa);
-    
-    log_info(logger, "## Conectado a Placa exitosamente");
 
     //paquete serializado de prueba
     t_paquete* paquete_prueba = crear_paquete(PAQUETE);
@@ -97,8 +91,6 @@ int main(int argc, char* argv[]) {
 
     liberar_conexion(socket_planificador);
     liberar_conexion(socket_placa);
-    config_destroy(config);
-    log_destroy(logger);
-
+    terminar_modulo();
     return EXIT_SUCCESS;
 }

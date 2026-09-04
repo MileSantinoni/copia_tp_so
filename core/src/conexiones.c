@@ -3,15 +3,8 @@
 #include <utils/conexion.h>
 #include <utils/comunicacion.h>
 #include <utils/protocolo.h>
+#include <utils/util.h>
 
-
-void enviar_handshake_core(int socket_destino) {
-    t_paquete* paquete = crear_paquete(CONEXION);
-    t_modulo modulo = CORE;
-    agregar_a_paquete(paquete, &modulo, sizeof(t_modulo));
-    enviar_paquete(paquete, socket_destino);
-    eliminar_paquete(paquete);
-}
 
 int conectar_con_planificador(char* ip, char* puerto) {
     log_info(logger, "Intentando conectar con Planificador (%s:%s)...", ip, puerto);
@@ -22,7 +15,7 @@ int conectar_con_planificador(char* ip, char* puerto) {
         return -1;
     }
 
-    enviar_handshake_core(socket_fd);
+    enviar_handshake(socket_fd, CORE);
     
     log_info(logger, "## Conectado a Planificador exitosamente");
     
@@ -38,7 +31,7 @@ int conectar_con_placa(char* ip, char* puerto) {
         return -1;
     }
 
-    enviar_handshake_core(socket_fd);
+    enviar_handshake(socket_fd, CORE);
     
     log_info(logger, "## Conectado a Placa exitosamente");
     
