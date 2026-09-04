@@ -65,7 +65,6 @@ void *atender_core(void *arg)
 
     if (codigo_conexion != CONEXION)
     {
-
         log_error(logger, "Se envio una operación NO esperada");
         exit(EXIT_FAILURE);
     }

@@ -1,6 +1,7 @@
 #include "config.h"
 #include <stdlib.h>
 #include <stdio.h>
+#include "storage_server.h"
 
 int main(int argc, char* argv[]) {
     if (argc < 2){
@@ -36,7 +37,8 @@ if (server_fd == -1){
 esperar_cliente_storage(server_fd);
 
 // limpieza final
-close(server_fd);
+// close(server_fd);
+liberar_conexio(server_fd);;
 destruir_configuracion();
 log_destroy(storage_logger);
 return EXIT_SUCCESS;
