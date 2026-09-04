@@ -1,8 +1,159 @@
 #include "cliente.h"
+#include <sys/select.h>
+#include <unistd.h>
+#include <errno.h>
+#include <sys/socket.h>
+#include <sys/select.h>
+#include <utils/comunicacion.h>
+#include <utils/protocolo.h>
+
 
 int socket_placa;
 int socket_storage;
 
+pthread_t hilo_escucha;
+
+//Envía el handshake del Planificador a Placa.
+
+static void enviar_handshake_placa(void)
+{
+    t_paquete* paquete = crear_paquete(CONEXION);
+
+    t_modulo modulo = PLANIFICADOR;
+
+    agregar_a_paquete(paquete, &modulo, sizeof(t_modulo));
+    enviar_paquete(paquete, socket_placa);
+    eliminar_paquete(paquete);
+
+    log_info(logger, "Handshake de Planificador enviado a Placa");
+}
+
+static int recibir_paquete_placa(int socket, int* codigo_operacion,
+                                 uint32_t* tamanio_payload, void** payload)
+{
+    *payload = NULL;
+
+    int resultado = recv(
+        socket,
+        codigo_operacion,
+        sizeof(*codigo_operacion),
+        MSG_WAITALL
+    );
+
+    if (resultado <= 0)
+        return -1;
+
+    resultado = recv(
+        socket,
+        tamanio_payload,
+        sizeof(*tamanio_payload),
+        MSG_WAITALL
+    );
+
+    if (resultado <= 0)
+        return -1;
+
+    if (*tamanio_payload > 0)
+    {
+        *payload = malloc(*tamanio_payload);
+
+        if (*payload == NULL)
+        {
+            log_error(logger, "No se pudo reservar memoria para el paquete");
+            return -1;
+        }
+
+        resultado = recv(
+            socket,
+            *payload,
+            *tamanio_payload,
+            MSG_WAITALL
+        );
+
+        if (resultado <= 0)
+        {
+            free(*payload);
+            *payload = NULL;
+            return -1;
+        }
+    }
+
+    return 0;
+}
+
+
+/*
+ * Procesa un paquete recibido desde Placa.
+ */
+static void procesar_paquete_placa(void)
+{
+    int codigo_operacion;
+    uint32_t tamanio_payload;
+    void* payload = NULL;
+
+    if (recibir_paquete_placa(
+            socket_placa,
+            &codigo_operacion,
+            &tamanio_payload,
+            &payload) == -1)
+    {
+        log_warning(logger, "Placa se desconectó");
+        close(socket_placa);
+        socket_placa = -1;
+        return;
+    }
+
+    switch (codigo_operacion)
+    {
+        case MENSAJE:
+        {
+            if (payload == NULL || tamanio_payload < sizeof(uint32_t))
+            {
+                log_warning(logger, "Mensaje inválido recibido desde Placa");
+                break;
+            }
+
+            uint32_t tamanio_mensaje;
+
+            memcpy(
+                &tamanio_mensaje,
+                payload,
+                sizeof(uint32_t)
+            );
+
+            if (tamanio_mensaje > 0 &&
+                sizeof(uint32_t) + tamanio_mensaje <= tamanio_payload)
+            {
+                char* mensaje =
+                    (char*)payload + sizeof(uint32_t);
+
+                log_info(
+                    logger,
+                    "Mensaje recibido de Placa: %s",
+                    mensaje
+                );
+            }
+
+            break;
+        }
+
+        default:
+        {
+            log_warning(
+                logger,
+                "Código de operación desconocido recibido de Placa: %d",
+                codigo_operacion
+            );
+
+            break;
+        }
+    }
+
+    free(payload);
+}
+
+
+//Inicializa las conexiones del Planificador con Placa y Storage.
 void iniciar_conexiones(t_config* config)
 {
     char* ip_placa = config_get_string_value(config, "IP_PLACA");
@@ -13,47 +164,81 @@ void iniciar_conexiones(t_config* config)
 
     char* puerto_storage = config_get_string_value(config, "PUERTO_STORAGE");
 
-
+ //Conexión con Placa
     socket_placa = crear_conexion(ip_placa, puerto_placa);
 
     if (socket_placa == -1){
-        log_error(logger, "No se pudo conectar con Placa");
+        log_error(logger, "No se pudo conectar con Placa: %s:%s", ip_placa, puerto_placa);
         exit(EXIT_FAILURE);
     }
 
-    log_info(logger, "Conectado a Placa");
-
-
+    log_info(logger, "Conectado a Placa: %s:%s", ip_placa, puerto_placa);
+    
+    enviar_handshake_placa();    //Handshake con Placa
+    
+    // Conexión con Storage
     socket_storage = crear_conexion(ip_storage, puerto_storage);
 
     if (socket_storage == -1){
-        log_error(logger, "No se pudo conectar con Storage");
+        log_error(logger, "No se pudo conectar con Storage: %s:%s", ip_storage, puerto_storage);
+        close(socket_placa);
         exit(EXIT_FAILURE);
     }
 
-    log_info(logger, "Conectado a Storage");
+    log_info(logger, "Conectado a Storage: %s:%s", ip_storage, puerto_storage);
+//No enviamos handshake a Storage todavía porque su servidor actualmente acepta la conexión y la cierra sin recibir ningún paquete.
 }
 
 pthread_t hilo_escucha;
 
+//Hilo que escucha a Placa y Storage, y procesa los mensajes que lleguen de ellos.
 void iniciar_hilo_escucha(void){
 
-    pthread_create(&hilo_escucha, NULL, escuchar_placa_storage, NULL);
-
-    if (pthread_create(&hilo_escucha, NULL, escuchar_placa_storage, NULL) != 0) //chequear si el hilo se creo correctamente
-    { 
+    if (pthread_create(&hilo_escucha, NULL, escuchar_placa_storage, NULL) != 0){ //chequear si el hilo se creo correctamente
         log_error(logger, "No se pudo crear el hilo de escucha");
         exit(EXIT_FAILURE);
     }
+
+    log_info(logger,"Hilo de escucha de Placa y Storage iniciado");
 }
 
-void* escuchar_placa_storage(void* arg){ //args no se usan, pero son necesarios para la firma de la función
+void* escuchar_placa_storage(void* arg){//args no se usan, pero son necesarios para la firma de la función
     //hilo que escuche a la placa y al storage, y que procese los mensajes que lleguen de ellos. Por ahora, solo vamos a escuchar y loguear los mensajes que lleguen.
     //select() o poll() para escuchar a ambos sockets, y luego loguear los mensajes que lleguen. 
-    while (1)
-    {
-        // TODO: recibir y procesar mensajes de Placa y Storage (falta implementar)
-    }
+         while (1){                         // TODO: recibir y procesar mensajes de Placa y Storage (falta implementar)
+            fd_set sockets;
 
-    return NULL;
+           FD_ZERO(&sockets);
+
+           FD_SET(socket_placa, &sockets);
+           FD_SET(socket_storage, &sockets);
+
+           int max_socket = socket_placa;
+
+           if (socket_storage > max_socket){
+            max_socket = socket_storage;
+            }
+
+           int resultado = select(max_socket + 1, &sockets, NULL, NULL, NULL);
+
+          if (resultado == -1){
+            if (errno == EINTR){
+                continue;
+            }
+
+            log_error(logger, "Error en select()");
+            break;
+          }
+
+          if (FD_ISSET(socket_placa, &sockets)){
+            log_info(logger, "Hay datos disponibles desde Placa");
+            procesar_paquete_placa();
+          }
+
+         if (FD_ISSET(socket_storage, &sockets)){
+            log_info(logger, "Hay datos disponibles desde Storage");    
+         }
+
+  }
+  return NULL;
 }
