@@ -12,8 +12,8 @@ extern t_config *config;
 
 char* modulo_a_string(int modulo);
 
-t_modulo enviar_handshake(int socket_cliente);
-t_modulo recibir_handshake(int socket_cliente);
+void enviar_handshake(int socket, t_modulo modulo);
+t_modulo recibir_handshake(int socket);
 
 void terminar_modulo(void);
 

@@ -1,5 +1,6 @@
 #include <utils/util.h>
 #include <utils/protocolo.h>
+#include <utils/comunicacion.h>
 
 char* modulo_a_string(int modulo){
 
@@ -29,17 +30,24 @@ char* modulo_a_string(int modulo){
     return respuesta; 
 }
 
-t_modulo enviar_handshake(int socket_cliente){
+void enviar_handshake(int socket, t_modulo modulo){
 
-    // Falta implementar
+  t_paquete* paquete = crear_paquete(CONEXION);
+
+  
+    char* modulo_s = modulo_a_string(modulo);
+
+    agregar_a_paquete(paquete, &modulo, sizeof(t_modulo));
+    enviar_paquete(paquete, socket);
+    eliminar_paquete(paquete);
+
+    log_info(logger, "Handshake enviado a %s", modulo_s);
 
 }
 
-t_modulo recibir_handshake(int socket_cliente){
+t_modulo recibir_handshake(int socket){
 
-   
-    // Falta implementar
-
+   // Falta implementar 
 }
 
 
