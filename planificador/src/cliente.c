@@ -39,7 +39,9 @@ pthread_t hilo_escucha;
 void iniciar_hilo_escucha(void){
 
     pthread_create(&hilo_escucha, NULL, escuchar_placa_storage, NULL);
-    if (pthread_create(&hilo_escucha, NULL, escuchar_placa_storage, NULL) != 0){ //chequear si el hilo se creo correctamente
+
+    if (pthread_create(&hilo_escucha, NULL, escuchar_placa_storage, NULL) != 0) //chequear si el hilo se creo correctamente
+    { 
         log_error(logger, "No se pudo crear el hilo de escucha");
         exit(EXIT_FAILURE);
     }

@@ -17,6 +17,7 @@
 #include <commons/config.h>
 
 #include "protocolo.h"
+#include "protocolo.h"
 
 // Estructura para guardar la configuracion
 typedef struct 
@@ -43,6 +44,6 @@ void inicializar_placa(char* path_config);
 int inicia_servidor_placa(char* puerto);
 void esperar_conexiones(int socket_servidor);
 void* atender_cliente(void* arg);
-void terminar_placa(void);
+// void terminar_placa(void); --> la pase de forma general al util  porque nos sirve a todos los modulos
 
 #endif /* PLACA_H_ */

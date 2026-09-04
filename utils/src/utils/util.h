@@ -9,5 +9,6 @@ extern t_config *config;
 
 
 char* modulo_a_string(int modulo);
+void terminar_modulo(void);
 
 #endif

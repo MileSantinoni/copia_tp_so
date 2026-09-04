@@ -28,3 +28,10 @@ char* modulo_a_string(int modulo){
 
     return respuesta; 
 }
+
+
+void terminar_modulo(void)
+{
+    log_destroy(logger);
+    config_destroy(config);
+}

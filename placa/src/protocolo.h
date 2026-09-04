@@ -8,7 +8,7 @@
 #include <unistd.h>
 #include <sys/socket.h>
 
-typedef enum
+/*typedef enum
 {
     MENSAJE,
     HANDSHAKE_PLANIFICADOR,
@@ -16,7 +16,7 @@ typedef enum
     HANDSHAKE_PLACA,
     HANDSHAKE_STORAGE,
     PAQUETE_PRUEBA
-} op_code;
+} op_code; --> mesajes generales que usamos todos van en utils para no repertir codigo y q sea consistente*/
 
 typedef struct
 {

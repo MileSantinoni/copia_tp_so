@@ -1,5 +1,10 @@
 #include "placa.h"
 
+#include <utils/conexion.h>
+#include <utils/comunicacion.h>
+#include <utils/protocolo.h>
+#include <utils/util.h>
+
 // Definición de las variables globales declaradas como extern en el .h
 t_log* logger;
 t_config* config_archivo;
@@ -17,7 +22,7 @@ int main(int argc, char* argv[])
 
     esperar_conexiones(socket_servidor);
 
-    terminar_placa();
+    terminar_modulo();
 
     return 0;
 }
@@ -51,7 +56,7 @@ void inicializar_placa(char* path_config)
     }
 }
 
-int inicia_servidor_placa(char* puerto)
+/*int inicia_servidor_placa(char* puerto)
 {
     struct addrinfo hints, *server_info;
 
@@ -83,7 +88,7 @@ int inicia_servidor_placa(char* puerto)
     }
 
     return socket_servidor;
-}
+}*/
 
 void esperar_conexiones(int socket_servidor)
 {
@@ -103,7 +108,7 @@ void esperar_conexiones(int socket_servidor)
     }
 }
 
-void* atender_cliente(void* arg)
+/*void* atender_cliente(void* arg)
 {
     int socket_cliente = *(int*)arg;
     free(arg);
@@ -162,10 +167,4 @@ void* atender_cliente(void* arg)
 
     close(socket_cliente);
     return NULL;
-}
-
-void terminar_placa(void)
-{
-    log_destroy(logger);
-    config_destroy(config_archivo);
-}
+}*/
