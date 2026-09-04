@@ -1,3 +1,4 @@
+#include "core.h"
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -5,21 +6,16 @@
 #include <commons/config.h>
 #include <commons/string.h>
 
+#include "conexiones.h"
 #include <utils/conexion.h>
 #include <utils/comunicacion.h>
 #include <utils/protocolo.h>
 
+#include "conexiones.h"
+
 
 t_log *logger = NULL;
 
-int enviar_handshake_core(int socket_destino) {
-    t_paquete* paquete = crear_paquete(CONEXION);
-    t_modulo modulo = CORE;
-    agregar_a_paquete(paquete, &modulo, sizeof(t_modulo));
-    enviar_paquete(paquete, socket_destino);
-    eliminar_paquete(paquete);
-    return 0;
-}
 
 int main(int argc, char* argv[]) {
     
@@ -28,8 +24,8 @@ int main(int argc, char* argv[]) {
         return EXIT_FAILURE;
     }
 
-    char* path_config = argv[1];
-    char* id_core = argv[2];
+    char* path_config = argv[1]; //osea que el config es el primer argumento
+    char* id_core = argv[2]; //y el id del core el 2do
 
     
     t_config* config = config_create(path_config);
@@ -65,10 +61,8 @@ int main(int argc, char* argv[]) {
     log_info(logger, "Iniciando modulo CORE [%s]", id_core);
 
     // conecta al planificador
-    log_info(logger, "Intentando conectar con Planificador (%s:%s)...", ip_planificador, puerto_planificador);
-    int socket_planificador = crear_conexion(ip_planificador, puerto_planificador);
+    int socket_planificador = conectar_con_planificador(ip_planificador, puerto_planificador);
     if (socket_planificador == -1) {
-        log_error(logger, "No se pudo conectar con el Planificador en %s:%s", ip_planificador, puerto_planificador);
         config_destroy(config);
         log_destroy(logger);
         return EXIT_FAILURE;
@@ -79,10 +73,8 @@ int main(int argc, char* argv[]) {
     log_info(logger, "## Conectado a Planificador exitosamente");
 
     // conectar a la placa
-    log_info(logger, "Intentando conectar con Placa (%s:%s)...", ip_placa, puerto_placa);
-    int socket_placa = crear_conexion(ip_placa, puerto_placa);
+    int socket_placa = conectar_con_placa(ip_placa, puerto_placa);
     if (socket_placa == -1) {
-        log_error(logger, "No se pudo conectar con la Placa en %s:%s", ip_placa, puerto_placa);
         liberar_conexion(socket_planificador);
         config_destroy(config);
         log_destroy(logger);
