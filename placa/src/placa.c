@@ -36,7 +36,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    log_info(logger, "## Placa lista para recibir conexiones - Puerto: %s", config_valores.puerto_escucha);
+    log_info(logger, "Placa lista para recibir conexiones - Puerto: %s", config_valores.puerto_escucha);
 
     esperar_conexiones(socket_servidor);
 
@@ -48,6 +48,7 @@ int main(int argc, char *argv[])
 void inicializar_placa(char *path_config)
 {
     config = config_create(path_config);
+
     if (config == NULL)
     {
         printf("No se pudo abrir el archivo de configuración: %s\n", path_config);
@@ -132,25 +133,27 @@ void *atender_cliente(void *arg)
     free(arg);
 
     t_modulo modulo = recibir_handshake(socket_cliente);
+    char *modulo_s = modulo_a_string(modulo);
 
     switch (modulo)
     {
     case CORE:
-        log_info(logger, "## Módulo: CORE");
         socket_core = socket_cliente;
+        int id_core = recibir_core_id(socket_core);
+        log_info(logger, "ID CORE: %i", id_core);
         break;
     case PLANIFICADOR:
 
-        log_info(logger, "## Módulo: PLANIFICADOR");
         socket_planificador = socket_cliente;
         break;
 
     default:
-        break;
+        log_warning(logger, "## Módulo desconocido: %s", modulo_s);
+        close(socket_cliente);
+        return NULL;
     }
 
-    char *modulo_s = modulo_a_string(modulo);
-    log_info(logger, "Esperando peticiones de %s", modulo_s);
+        log_info(logger, "Esperando peticiones de %s", modulo_s);
 
     while (1)
     {

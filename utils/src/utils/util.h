@@ -15,6 +15,8 @@ char* modulo_a_string(int modulo);
 void enviar_handshake(int socket, t_modulo modulo);
 t_modulo recibir_handshake(int socket);
 
+int  recibir_core_id(int socket);
+
 void terminar_modulo(void);
 
 #endif

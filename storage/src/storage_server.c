@@ -1,10 +1,12 @@
 #include "storage_server.h"
-#include <utils/util.h>
+
 #include <sys/socket.h>
 #include <unistd.h>
 #include <netdb.h>
 #include <string.h>
+
 #include <utils/comunicacion.h>
+#include <utils/util.h>
 
 /*int iniciar_servidor_storage(void){
     int socket_servidor;
@@ -114,20 +116,23 @@ void *atender_cliente_storage(void *arg)
         return NULL;
     }
 
-    char* modulo_s  = modulo_a_string(modulo);
-    log_info(logger, "Modulo: %s", modulo_s);
-
+    char *modulo_s = modulo_a_string(modulo);
     log_info(logger, "Esperando peticiones de %s", modulo_s);
 
     while (1)
     {
         int codigo_operacion = recibir_operacion(socket_cliente); // Reccibimos el codigo del paquete aca, dentro del switch hay que recibir el paquete
 
+        if (codigo_operacion == -1)
+        {
+            log_warning(logger, "PLANIFICADOR desconectado");
+            break;
+        }
+
         switch (codigo_operacion)
         {
-
-        case MENSAJE:
-        {
+            case MENSAJE:
+            {
             // El texto está después del entero de tamaño (payload + 4 bytes)
             /*char* texto = (char*)(paquete->payload + sizeof(uint32_t));
             log_info(logger, "## Mensaje recibido: %s", texto);*/
@@ -140,7 +145,7 @@ void *atender_cliente_storage(void *arg)
             // Confirmación simple de vuelta al cliente
             enviar_mensaje("CONFIRMACION_RECIBIDA", socket_cliente);
             break;
-        }
+            }
 
         default:
             log_warning(logger, "## Código de operación desconocido: %d", codigo_operacion);

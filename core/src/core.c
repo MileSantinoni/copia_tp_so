@@ -63,7 +63,7 @@ int main(int argc, char* argv[]) {
     log_info(logger, "Iniciando modulo CORE [%s]", id_core);
 
     // conecta al planificador
-    int socket_planificador = conectar_con_planificador(ip_planificador, puerto_planificador);
+    int socket_planificador = conectar_con_planificador(ip_planificador, puerto_planificador, atoi(id_core));
     if (socket_planificador == -1) {
         terminar_modulo();
         return EXIT_FAILURE;
@@ -71,26 +71,28 @@ int main(int argc, char* argv[]) {
     
 
     // conectar a la placa
-    int socket_placa = conectar_con_placa(ip_placa, puerto_placa);
+    int socket_placa = conectar_con_placa(ip_placa, puerto_placa, atoi(id_core));
     if (socket_placa == -1) {
         liberar_conexion(socket_planificador);
         terminar_modulo();
         return EXIT_FAILURE;
     }
 
-
     //paquete serializado de prueba
-    t_paquete* paquete_prueba = crear_paquete(PAQUETE);
+    /*t_paquete* paquete_prueba = crear_paquete(CO);
     char* msg = "Paquete de prueba Checkpoint 1";
     agregar_a_paquete(paquete_prueba, msg, strlen(msg) + 1);
     agregar_a_paquete(paquete_prueba, id_core, strlen(id_core) + 1);
     enviar_paquete(paquete_prueba, socket_planificador);
-    eliminar_paquete(paquete_prueba);
+    eliminar_paquete(paquete_prueba);*/
 
-    log_info(logger, "Paquete de prueba enviado al Planificador.");
+    crear_hilo_escucha();
+    escuchar_servidores(NULL);
 
+    
     liberar_conexion(socket_planificador);
     liberar_conexion(socket_placa);
     terminar_modulo();
+
     return EXIT_SUCCESS;
 }

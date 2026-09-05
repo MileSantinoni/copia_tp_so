@@ -30,24 +30,20 @@ char* modulo_a_string(int modulo){
     return respuesta; 
 }
 
-void enviar_handshake(int socket, t_modulo modulo){
+void enviar_handshake(int socket, t_modulo modulo) // MODULO --> El que envia la funcion 
+{
 
-  t_paquete* paquete = crear_paquete(CONEXION);
-
-  
-    char* modulo_s = modulo_a_string(modulo);
+    t_paquete* paquete = crear_paquete(CONEXION);
 
     agregar_a_paquete(paquete, &modulo, sizeof(t_modulo));
     enviar_paquete(paquete, socket);
     eliminar_paquete(paquete);
 
-    log_info(logger, "Handshake enviado a %s", modulo_s);
+    log_info(logger, "Handshake enviado a socket: %i", socket);
 
 }
 
 t_modulo recibir_handshake(int socket){
-
-   // Falta implementar 
    
     int cod_op = recibir_operacion(socket);
     if (cod_op != CONEXION) {
@@ -78,4 +74,26 @@ void terminar_modulo(void)
 {
     log_destroy(logger);
     config_destroy(config);
+}
+
+int recibir_core_id(int socket){
+   
+    int cod_op = recibir_operacion(socket);
+    if (cod_op != ENVIO_ID) {
+
+        log_error(logger, "Error: Se esperaba un Handshake (op_code: MENSAJE) pero se recibio op_code %d", cod_op);
+        exit(EXIT_FAILURE);
+    }
+
+    t_list* valores = recibir_paquete(socket);
+    if (valores == NULL || list_size(valores) == 0) {
+        log_error(logger, "Error: No se pudieron recibir datos del paquete");
+        if (valores != NULL) list_destroy(valores);
+         exit(EXIT_FAILURE);
+    }
+
+    int id_recibido = *(int*) list_get(valores, 0);
+    list_destroy_and_destroy_elements(valores, free);
+
+    return id_recibido;
 }

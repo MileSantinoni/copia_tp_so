@@ -1,9 +1,10 @@
 #include "cliente.h"
-#include <sys/select.h>
+
 #include <unistd.h>
 #include <errno.h>
 #include <sys/socket.h>
 #include <sys/select.h>
+
 #include <utils/comunicacion.h>
 #include <utils/protocolo.h>
 #include <utils/util.h>
@@ -15,7 +16,7 @@ pthread_t hilo_escucha;
 
 // Envía el handshake del Planificador a Placa.
 
-static void enviar_handshake_placa(void)
+/*static void enviar_handshake_placa(void)
 {
     t_paquete *paquete = crear_paquete(CONEXION);
 
@@ -26,7 +27,7 @@ static void enviar_handshake_placa(void)
     eliminar_paquete(paquete);
 
     log_info(logger, "Handshake de Planificador enviado a Placa");
-}
+}*/
 
 // Inicializa las conexiones del Planificador con Placa y Storage.
 void iniciar_conexiones(t_config *config)
@@ -50,7 +51,7 @@ void iniciar_conexiones(t_config *config)
 
     log_info(logger, "Conectado a Placa: %s:%s", ip_placa, puerto_placa);
 
-    enviar_handshake_placa(); // Handshake con Placa
+    enviar_handshake(socket_placa, PLANIFICADOR); // Handshake con Placa
 
     // Conexión con Storage
     socket_storage = crear_conexion(ip_storage, puerto_storage);
@@ -63,6 +64,8 @@ void iniciar_conexiones(t_config *config)
     }
 
     log_info(logger, "Conectado a Storage: %s:%s", ip_storage, puerto_storage);
+    
+    enviar_handshake(socket_storage, PLANIFICADOR); // Handshake con Placa
     // No enviamos handshake a Storage todavía porque su servidor actualmente acepta la conexión y la cierra sin recibir ningún paquete.
 }
 
@@ -117,8 +120,6 @@ void *escuchar_placa_storage(void *arg)
 
         if (FD_ISSET(socket_placa, &sockets))
         {
-            log_info(logger, "ENtra a placa de cliente ");
-            enviar_handshake(socket_placa, PLANIFICADOR);
 
             int cod_op = recibir_operacion(socket_placa);
 
@@ -126,9 +127,6 @@ void *escuchar_placa_storage(void *arg)
             {
                 log_warning(logger, "Se desconecto PLACA");
                 exit(EXIT_FAILURE);
-                break;
-
-                break;
             }
 
             switch (cod_op)
@@ -144,14 +142,13 @@ void *escuchar_placa_storage(void *arg)
             }
 
             default:
-                log_warning(logger, "Operacion desconocida desde Placa: %d", cod_op);
+                log_warning(logger, "Operacion desconocida desde PLACA: %d", cod_op);
                 break;
             }
         }
 
         if (FD_ISSET(socket_storage, &sockets))
         {
-            enviar_handshake(socket_storage, PLANIFICADOR);
 
             int cod_op = recibir_operacion(socket_storage);
 
@@ -159,7 +156,6 @@ void *escuchar_placa_storage(void *arg)
             {
                 log_warning(logger, "Se desconecto STORAGE");
                 exit(EXIT_FAILURE);
-                break;
             }
 
             switch (cod_op)
@@ -177,7 +173,7 @@ void *escuchar_placa_storage(void *arg)
             }
 
             default:
-                log_warning(logger, "Operacion desconocida desde Placa: %d", cod_op);
+                log_warning(logger, "Operacion desconocida desde STORAGE: %d", cod_op);
                 break;
             }
         }

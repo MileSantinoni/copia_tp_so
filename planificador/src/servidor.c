@@ -60,36 +60,17 @@ void *atender_core(void *arg)
     int socket_core = *(int *)arg;
     free(arg);
 
-    /*int codigo_conexion = recibir_operacion(socket_core);
-
-    if (codigo_conexion != CONEXION)
-    {
-        log_error(logger, "Se envio una operación NO esperada");
-        exit(EXIT_FAILURE);
-    }
-
-    t_list *paquete_recibido = recibir_paquete(socket_core);
-
-    if (paquete_recibido == NULL)
-    {
-        log_error(logger, "Error al recibir el paquete");
-        list_destroy_and_destroy_elements(paquete_recibido, free);
-        return NULL;
-    }*/
-
     t_modulo modulo = recibir_handshake(socket_core);
-    // t_modulo modulo = *(t_modulo *)list_get(paquete_recibido, 0);
 
     if (modulo != CORE)
     {
         log_error(logger, "El modulo %i no corresponde como cliente de Planificador", modulo);
-        // list_destroy_and_destroy_elements(paquete_recibido, free);
         close(socket_core);
         return NULL;
     }
 
-    char *modulo_s = modulo_a_string(modulo);
-    log_info(logger, "## Módulo: %s", modulo_s);
+    int id_core = recibir_core_id(socket_core);
+    log_info(logger, "ID CORE: %i", id_core);
 
     // Recibo operaciones de CORE
 
