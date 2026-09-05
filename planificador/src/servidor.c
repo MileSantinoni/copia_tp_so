@@ -13,7 +13,6 @@
 #include <utils/protocolo.h>
 #include <utils/util.h>
 
-
 void iniciar_conexion_como_servidor()
 {
 
@@ -61,7 +60,7 @@ void *atender_core(void *arg)
     int socket_core = *(int *)arg;
     free(arg);
 
-    int codigo_conexion = recibir_operacion(socket_core);
+    /*int codigo_conexion = recibir_operacion(socket_core);
 
     if (codigo_conexion != CONEXION)
     {
@@ -76,35 +75,50 @@ void *atender_core(void *arg)
         log_error(logger, "Error al recibir el paquete");
         list_destroy_and_destroy_elements(paquete_recibido, free);
         return NULL;
-    }
+    }*/
 
-    t_modulo modulo = *(t_modulo *)list_get(paquete_recibido, 0);
+    t_modulo modulo = recibir_handshake(socket_core);
+    // t_modulo modulo = *(t_modulo *)list_get(paquete_recibido, 0);
 
     if (modulo != CORE)
     {
         log_error(logger, "El modulo %i no corresponde como cliente de Planificador", modulo);
-        list_destroy_and_destroy_elements(paquete_recibido, free);
+        // list_destroy_and_destroy_elements(paquete_recibido, free);
         close(socket_core);
         return NULL;
     }
 
-    char* modulo_s = modulo_a_string(modulo);
+    char *modulo_s = modulo_a_string(modulo);
+    log_info(logger, "## Módulo: %s", modulo_s);
 
-    log_info(logger,"## Módulo: %s", modulo_s);
-
-    list_destroy_and_destroy_elements(paquete_recibido, free);
+    // Recibo operaciones de CORE
 
     int codigo_operacion = recibir_operacion(socket_core);
+
+    if (codigo_operacion == -1)
+    {
+        log_warning(logger, "Se desconecto CORE");
+        return NULL;
+    }
 
     switch (codigo_operacion)
     {
     case MENSAJE:
-        /* code */
-        break;
+    {
+        int size;
+        char *buffer = recibir_buffer(&size, socket_core);
+        log_info(logger, "Me llego el mensaje: %s", buffer);
+        free(buffer);
 
+        // Confirmación simple de vuelta al cliente
+        enviar_mensaje("CONFIRMACION_RECIBIDA", socket_core);
+        break;
+    }
     default:
+        log_warning(logger, "## Código de operación desconocido: %d", codigo_operacion);
         break;
     }
 
+    liberar_conexion(socket_core);
     return NULL;
 }

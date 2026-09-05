@@ -6,21 +6,35 @@
 #include <utils/util.h>
 
 // Definición de las variables globales declaradas como extern en el .h
-t_log* logger;
-t_config* config;
+t_log *logger;
+t_config *config;
 t_config_placa config_valores;
 
 int socket_core;
 int socket_planificador;
 
-int main(int argc, char* argv[])
+int main(int argc, char *argv[])
 {
-    char* path_config = (argc > 1) ? argv[1] : "placa.config";
+    if (argc < 2)
+    {
+        printf("Uso correcto: ./bin/placa [Archivo Config] \n");
+        exit(EXIT_FAILURE);
+    }
+
+    char *path_config = (argc > 1) ? argv[1] : "placa.config";
 
     inicializar_placa(path_config);
 
-   // int socket_servidor = inicia_servidor_placa(config_valores.puerto_escucha); --> puse iniciar servviddor para no repetir codigo al pedo 
-    int socket_servidor = iniciar_servidor(config_valores.puerto_escucha); 
+    // int socket_servidor = inicia_servidor_placa(config_valores.puerto_escucha); --> puse iniciar servviddor para no repetir codigo al pedo
+    int socket_servidor = iniciar_servidor(config_valores.puerto_escucha);
+
+    if (socket_servidor < 0)
+    {
+        log_error(logger, "Error al iniciar servidor");
+        config_destroy(config);
+        log_destroy(logger);
+        exit(EXIT_FAILURE);
+    }
 
     log_info(logger, "## Placa lista para recibir conexiones - Puerto: %s", config_valores.puerto_escucha);
 
@@ -31,7 +45,7 @@ int main(int argc, char* argv[])
     return 0;
 }
 
-void inicializar_placa(char* path_config)
+void inicializar_placa(char *path_config)
 {
     config = config_create(path_config);
     if (config == NULL)
@@ -41,16 +55,16 @@ void inicializar_placa(char* path_config)
     }
 
     // Cargamos los valores del config a nuestra estructura
-    config_valores.puerto_escucha      = config_get_string_value(config, "PUERTO_ESCUCHA");
-    config_valores.log_level           = config_get_string_value(config, "LOG_LEVEL");
-    config_valores.tam_memoria         = config_get_int_value(config, "TAM_MEMORIA");
-    config_valores.tam_pagina          = config_get_int_value(config, "TAM_PAGINA");
-    config_valores.retardo_memoria     = config_get_int_value(config, "RETARDO_MEMORIA");
+    config_valores.puerto_escucha = config_get_string_value(config, "PUERTO_ESCUCHA");
+    config_valores.log_level = config_get_string_value(config, "LOG_LEVEL");
+    config_valores.tam_memoria = config_get_int_value(config, "TAM_MEMORIA");
+    config_valores.tam_pagina = config_get_int_value(config, "TAM_PAGINA");
+    config_valores.retardo_memoria = config_get_int_value(config, "RETARDO_MEMORIA");
     config_valores.algoritmo_reemplazo = config_get_string_value(config, "ALGORITMO_REEMPLAZO");
-    config_valores.path_instrucciones  = config_get_string_value(config, "PATH_INSTRUCCIONES");
-    config_valores.path_offload        = config_get_string_value(config, "PATH_OFFLOAD");
-    config_valores.tam_offload         = config_get_int_value(config, "TAM_OFFLOAD");
-    config_valores.retardo_offload     = config_get_int_value(config, "RETARDO_OFFLOAD");
+    config_valores.path_instrucciones = config_get_string_value(config, "PATH_INSTRUCCIONES");
+    config_valores.path_offload = config_get_string_value(config, "PATH_OFFLOAD");
+    config_valores.tam_offload = config_get_int_value(config, "TAM_OFFLOAD");
+    config_valores.retardo_offload = config_get_int_value(config, "RETARDO_OFFLOAD");
 
     logger = log_create("placa.log", "PLACA", true, log_level_from_string(config_valores.log_level));
     if (logger == NULL)
@@ -103,7 +117,7 @@ void esperar_conexiones(int socket_servidor)
         if (socket_cliente == -1)
             continue;
 
-        int* socket_ptr = malloc(sizeof(int));
+        int *socket_ptr = malloc(sizeof(int));
         *socket_ptr = socket_cliente;
 
         pthread_t hilo_cliente;
@@ -112,42 +126,44 @@ void esperar_conexiones(int socket_servidor)
     }
 }
 
-void* atender_cliente(void* arg)
+void *atender_cliente(void *arg)
 {
-    int socket_cliente = *(int*)arg;
+    int socket_cliente = *(int *)arg;
     free(arg);
 
     t_modulo modulo = recibir_handshake(socket_cliente);
-    
+
     switch (modulo)
     {
     case CORE:
-        log_info(logger, "Se conecto un CORE");
+        log_info(logger, "## Módulo: CORE");
+        socket_core = socket_cliente;
         break;
     case PLANIFICADOR:
-        
-        log_info(logger, "Se conecto el PLANIFICADOR");
+
+        log_info(logger, "## Módulo: PLANIFICADOR");
+        socket_planificador = socket_cliente;
         break;
-   
+
     default:
         break;
     }
 
-
+    char *modulo_s = modulo_a_string(modulo);
+    log_info(logger, "Esperando peticiones de %s", modulo_s);
 
     while (1)
     {
-        t_list* paquete = recibir_paquete(socket_cliente);
+        int codigo_operacion = recibir_operacion(socket_cliente); // Reccibimos el codigo del paquete aca, dentro del switch hay que recibir el paquete
 
-        if (paquete == NULL)
+        if (codigo_operacion == -1)
         {
-            log_info(logger, "## Cliente desconectado");
-            break;
+            log_warning(logger, "Se desconecto %s", modulo_s);
+            return NULL;
         }
-
-        /*switch (paquete->codigo_operacion)
+        switch (codigo_operacion)
         {
-            case HANDSHAKE_CORE:
+            /*case HANDSHAKE_CORE:
                 log_info(logger, "## Handshake recibido: Módulo CORE");
                 enviar_mensaje("HANDSHAKE_OK", socket_cliente);
                 break;
@@ -155,20 +171,25 @@ void* atender_cliente(void* arg)
             case HANDSHAKE_PLANIFICADOR:
                 log_info(logger, "## Handshake recibido: Módulo PLANIFICADOR");
                 enviar_mensaje("HANDSHAKE_OK", socket_cliente);
-                break;
+                break;*/
 
-            case MENSAJE:
-            {
-                // El texto está después del entero de tamaño (payload + 4 bytes)
-                char* texto = (char*)(paquete->payload + sizeof(uint32_t));
-                log_info(logger, "## Mensaje recibido: %s", texto);
+        case MENSAJE:
+        {
+            // El texto está después del entero de tamaño (payload + 4 bytes)
+            /*char* texto = (char*)(paquete->payload + sizeof(uint32_t));
+            log_info(logger, "## Mensaje recibido: %s", texto);*/
 
-                // Confirmación simple de vuelta al cliente
-                enviar_mensaje("CONFIRMACION_RECIBIDA", socket_cliente);
-                break;
-            }
+            int size;
+            char *buffer = recibir_buffer(&size, socket_cliente);
+            log_info(logger, "Me llego el mensaje: %s", buffer);
+            free(buffer);
 
-            case PAQUETE_PRUEBA:
+            // Confirmación simple de vuelta al cliente
+            enviar_mensaje("CONFIRMACION_RECIBIDA", socket_cliente);
+            break;
+        }
+
+            /*case PAQUETE_PRUEBA:
             {
                 log_info(logger, "## Paquete con datos recibido");
 
@@ -177,14 +198,12 @@ void* atender_cliente(void* arg)
                 enviar_paquete(respuesta, socket_cliente);
                 eliminar_paquete(respuesta);
                 break;
-            }
+            }*/
 
-            default:
-                log_warning(logger, "## Código de operación desconocido: %d", paquete->codigo_operacion);
-                break;
+        default:
+            log_warning(logger, "## Código de operación desconocido: %d", codigo_operacion);
+            break;
         }
-
-        eliminar_paquete(paquete);*/
     }
 
     close(socket_cliente);

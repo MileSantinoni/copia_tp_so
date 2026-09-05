@@ -15,7 +15,7 @@ typedef struct{
 } t_storage_config; // para luego poder invocar el struct de manera mas sencilla
 
 extern t_storage_config * storage_config; // puntero el cual apuntara, a la memoria struct 
-extern t_log * storage_logger; // puntero, el cual apunta a la instancia logger
+extern t_log * logger; // puntero, el cual apunta a la instancia logger
 
 int cargar_configuracion(char*path_config); // cargar config cuando inciemos el programa
 void destruir_configuracion (void); // limpieza de memoria una vez que el programa finalice

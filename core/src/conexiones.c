@@ -26,6 +26,7 @@ int conectar_con_placa(char* ip, char* puerto) {
     log_info(logger, "Intentando conectar con Placa (%s:%s)...", ip, puerto);
     
     int socket_fd = crear_conexion(ip, puerto);
+    
     if (socket_fd == -1) {
         log_error(logger, "No se pudo conectar con la Placa en %s:%s", ip, puerto);
         return -1;
