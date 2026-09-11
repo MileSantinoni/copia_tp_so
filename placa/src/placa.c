@@ -10,6 +10,9 @@ t_log *logger;
 t_config *config;
 t_config_placa config_valores;
 
+t_dictionary* diccionario_jobs;
+pthread_mutex_t mutex_jobs = PTHREAD_MUTEX_INITIALIZER;
+
 int socket_core;
 int socket_planificador;
 
@@ -47,6 +50,8 @@ int main(int argc, char *argv[])
 
 void inicializar_placa(char *path_config)
 {
+    diccionario_jobs = dictionary_create();
+    
     config = config_create(path_config);
 
     if (config == NULL)
@@ -211,4 +216,48 @@ void *atender_cliente(void *arg)
 
     close(socket_cliente);
     return NULL;
+}
+
+void crear_job_en_placa(int jid, char* nombre_archivo)
+{
+    char* path_completo = string_from_format("%s%s", config_valores.path_instrucciones, nombre_archivo);
+    
+    FILE* archivo = fopen(path_completo, "r");
+    free(path_completo);
+
+    if(archivo == NULL)
+    {
+        log_error(logger, "## JID: %d - Error al abrir archivo de instrucciones: %s", jid, nombre_archivo);
+        return;
+    } 
+
+    t_job_instrucciones* job = malloc(sizeof(t_job_instrucciones));
+    job->jid = jid;
+    job->instrucciones = NULL;
+    job->cantidad_instrucciones = 0;
+
+    char* linea = NULL;
+    size_t len = 0;
+
+    while (getline(&linea, &len, archivo) != -1)
+    {
+        /* Saco el salto de linea si hay */
+        linea[strcspn(linea, "\n")] = '\0';
+
+        job->instrucciones = realloc(job->instrucciones, sizeof(char*) * (job->cantidad_instrucciones + 1));
+        job->instrucciones[job->cantidad_instrucciones] = strdup(linea);
+        job->cantidad_instrucciones++;
+    }
+
+    free(linea);
+    fclose(archivo);
+
+    pthread_mutex_lock(&mutex_jobs);
+    char* clave = string_itoa(jid);
+    dictionary_put(diccionario_jobs, clave, job);
+    free(clave);
+    pthread_mutex_unlock(&mutex_jobs);
+
+    log_info(logger, "## JID: %d - Job Creado", jid);
+    
 }

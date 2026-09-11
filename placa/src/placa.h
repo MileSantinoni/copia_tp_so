@@ -16,6 +16,8 @@
 #include <commons/log.h>
 #include <commons/config.h>
 
+#include <commons/collections/dictionary.h>
+
 #include "protocolo.h"
 #include "protocolo.h"
 
@@ -34,6 +36,20 @@ typedef struct
     int retardo_offload;
 } t_config_placa;
 
+// Estructura para guardar las instrucciones de cada Job
+
+typedef struct
+{
+    int jid;
+    char** instrucciones; // arrray de strings
+    int cantidad_instrucciones;
+} t_job_instrucciones;
+
+// Diccionario/lista de Jobs cargafos.
+extern t_dictionary* diccionario_jobs;
+extern pthread_mutex_t mutex_jobs;
+
+
 // Variables Globales
 extern t_log* logger;
 extern t_config* config_archivo;
@@ -45,5 +61,9 @@ int inicia_servidor_placa(char* puerto);
 void esperar_conexiones(int socket_servidor);
 void* atender_cliente(void* arg);
 // void terminar_placa(void); --> la pase de forma general al util  porque nos sirve a todos los modulos
+
+//Prototipos CHECK 2
+void crear_job_en_placa(int jid, char* nombre_archivo);
+char* obtener_instruccion(int jid, uint32_t pc);
 
 #endif /* PLACA_H_ */
