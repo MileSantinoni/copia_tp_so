@@ -1,4 +1,5 @@
 #include <utils/comunicacion.h>
+#include <utils/protocolo.h>
 
 void crear_buffer(t_paquete *paquete){
 	paquete->buffer = malloc(sizeof(t_buffer));
@@ -144,4 +145,45 @@ char *recibir_nombre(int socket_cliente){
 void saludar(char* quien)
 {
     printf("Hola %s\n", quien);
+}
+
+// funciones para el check 2 
+
+void enviar_contexto (int socket_destino, op_code codigo, uint32_t jid, t_registros_cpu * registros ){ // uint_32 jid, sirve como identificador de cada proceso 
+  t_paquete * paquete = crear_paquete(codigo);
+
+  // Empaquetamos id del proceso
+  agregar_a_paquete (paquete, &jid, sizeof(uint32_t));
+ 
+  // Empaquetamos el bloque con los 14 registros definidos en t_registros
+  agregar_a_paquete(paquete, registros, sizeof(t_registros_cpu));
+
+  // serializar y enviar por red
+  enviar_paquete(paquete, socket_destino);
+
+  // liberamos memoria, en este caso del paquete 
+  eliminar_paquete(paquete);
+} 
+
+void recibir_contexto (int socket_origen, uint32_t *jid, t_registros_cpu * registros){
+	int size;
+	void * buffer = recibir_buffer(&size, socket_origen); // variable vacia para que la funcion la complete con lo que leyo en la red
+	int desplazamiento = 0; // lo utilizo para saber en la posicion exacta de memoria que estoy parado
+	int tamanio_campo; 
+
+	//Extraemos el Jid
+	memcpy(&tamanio_campo, buffer + desplazamiento,sizeof(int)); // buffer + desplazamiento calcula direccion de memoria 
+	desplazamiento += sizeof(int); // sumamos la cantidad exacta que acabamos de leer
+
+	memcpy(jid, buffer + desplazamiento, sizeof(uint32_t));
+	desplazamiento += sizeof(uint32_t);
+
+	// extraemos el struct completo de registros
+
+	memcpy(&tamanio_campo, buffer + desplazamiento, sizeof(int));
+	desplazamiento += sizeof(int);
+	memcpy(registros, buffer + desplazamiento, sizeof(t_registros_cpu));
+	desplazamiento += sizeof(t_registros_cpu);
+
+	free(buffer);
 }

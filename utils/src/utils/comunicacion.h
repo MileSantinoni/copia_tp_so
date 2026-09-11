@@ -41,5 +41,7 @@ t_list *recibir_paquete(int socket_cliente);
 void recibir_mensaje(int socket_cliente);
 int recibir_operacion(int socket_cliente);
 char *recibir_nombre(int socket_cliente);
+void enviar_contexto(int socket_destino, op_code codigo, uint32_t jid, t_registros_cpu* registros);
+void recibir_contexto(int socket_origen, uint32_t* jid, t_registros_cpu* registros);
 
 #endif
