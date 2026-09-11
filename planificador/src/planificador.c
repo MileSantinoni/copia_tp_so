@@ -59,6 +59,7 @@ int main(int argc, char *argv[])
     iniciar_conexion_como_servidor();
 
     // FAlta Eliminar y liberar todo
-
+    log_destroy(logger);
+    config_destroy(config);
     return 0;
 }
