@@ -8,6 +8,7 @@
 
 #include "core.h"
 #include "conexiones.h"
+#include "registro.h"
 #include <utils/conexion.h>
 #include <utils/comunicacion.h>
 #include <utils/protocolo.h>
@@ -17,6 +18,26 @@
 
 t_log *logger = NULL;
 t_config* config = NULL; 
+
+int hay_interrupcion = 0; // 0 false || 1 true
+
+void ciclo_de_instruccion(int socket_dispatch, uint32_t jid){
+    int ejecutando = 1;
+    while(ejecutando){
+        // fase del fetch
+        log_info(logger, "## FETCH - PC: %d", registros_cpu.PC);
+        //fase de decode and execute
+        registros_cpu.PC++;
+
+        // chequeo si existe alguna interrupcion
+        if(hay_interrupcion){
+            log_info(logger, "## Interrupción detectada. Desalojando proceso JID: %d...", jid);
+            hay_interrupcion=0;
+            ejecutando = 0;
+            enviar_contexto(socket_dispatch, DESALOJAR_JOB, jid, &registros_cpu);
+        }
+    }
+}
 
 
 int main(int argc, char* argv[]) {
