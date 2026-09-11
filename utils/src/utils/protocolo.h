@@ -46,7 +46,7 @@ typedef struct
     uint32_t E1;
     uint32_t E2;
     uint32_t E3;
-}; t_registros_cpu;
+} t_registros_cpu;
 
 
 
