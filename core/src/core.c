@@ -108,6 +108,35 @@ int main(int argc, char* argv[]) {
     eliminar_paquete(paquete_prueba);*/
 
     crear_hilo_escucha();
+    while (1)
+    {
+       int cod_op = recibir_operacion(socket_planificador); // asigno lo que recibo del planificador, recibo la operacion en este caso
+       if( cod_op == -1){ // si el codigo op es -1 entonces esto quiere decir que el planificador no se conecto correctamente
+        log_error(logger, "El Planificador se desconecto.");
+        break;  
+      
+      }
+      switch(cod_op){
+        case DESPACHAR_JOB:{
+            uint32_t jid;
+            t_registros_cpu contexto_recibido;
+
+            recibir_contexto (socket_planificador, &jid, &contexto_recibido); // core extrae paquete de jid y su estado anterior 
+            log_info (logger, "## Proceso despachado - JID: %d", jid);
+
+            cargar_contexto (&contexto_recibido); // volcamos los datos obtenidos a la variable global registros_cpu
+            ciclo_de_instruccion(socket_planificador, jid); // el core entra a ejecutar las instrucciones del proceso en un bucle local 
+            break;
+        }
+        default: // el core recibio un codigo de operacion que el no esperaba del planificador por ese socket
+            log_warning(logger, "Operación no reconocida del Planificador: %d", cod_op);
+            break; 
+      }
+    
+    }
+    
+
+
     escuchar_servidores(NULL);
 
     
