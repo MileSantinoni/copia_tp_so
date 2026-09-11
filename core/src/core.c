@@ -65,6 +65,23 @@ void ciclo_de_instruccion (int socket_dispatch, int socket_placa, uint32_t jid){
     }
 }  
 
+void setear_valor_registro (char * nombre_registro, uint32_t valor){
+    if(strcmp(nombre_registro, "PC")== 0) { registros_cpu.PC = valor; return;} // extraemos el valor y lo guardamos en el registro que segun matcheen
+    if(strcmp(nombre_registro, "AX")== 0) { registros_cpu.AX = valor; return;}
+    if(strcmp(nombre_registro, "BX")== 0) { registros_cpu.BX = valor; return;}
+    if(strcmp(nombre_registro, "CX")== 0) { registros_cpu.CX = valor; return;}
+    if(strcmp(nombre_registro, "DX")== 0) { registros_cpu.DX = valor; return;}
+    if(strcmp(nombre_registro, "P0")== 0) { registros_cpu.P0 = valor; return;}
+    if(strcmp(nombre_registro, "P1")== 0) { registros_cpu.P1 = valor; return;}
+    if(strcmp(nombre_registro, "P2")== 0) { registros_cpu.P2 = valor; return;}
+    if(strcmp(nombre_registro, "P3")== 0) { registros_cpu.P3 = valor; return;}
+    if(strcmp(nombre_registro, "P4")== 0) { registros_cpu.P4 = valor; return;}
+    if(strcmp(nombre_registro, "P5")== 0) { registros_cpu.P5 = valor; return;}
+    if(strcmp(nombre_registro, "E1")== 0) { registros_cpu.E1 = valor; return;}
+    if(strcmp(nombre_registro, "E2")== 0) { registros_cpu.E2 = valor; return;}
+    if(strcmp(nombre_registro, "E3")== 0) { registros_cpu.E3 = valor; return;}
+}
+
 
 int main(int argc, char* argv[]) {
     
