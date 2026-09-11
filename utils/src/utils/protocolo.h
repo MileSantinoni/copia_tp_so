@@ -8,7 +8,18 @@ typedef enum
 	PAQUETE,
     CONEXION, //  Agregue este para que el op_code del paquete se este y la info que agregamos es el t_modulo correspondinete
     ENVIO_ID, 
+
+
+    // Operaciones del check N2
+    CREAR_JOB, //planificador crea job y se lo manda a la placa
+    FETCH_INSTRUCCION, // Core le pide la instruccion a la placa
+    RESPUESTA_INSTRUCCION, // placa responde al core
+    DESPACHAR_JOB, // planificador despacha el job al core
+    DESALOJAR_JOB,  // Fin de quantum / interrupcion 
+    INTERRUPCION, // Planificador le envia al core
+    FINALIZAR_JOB, // core le envia al planificador y el planificador a placa
 } op_code;
+
 
 typedef enum
 {
