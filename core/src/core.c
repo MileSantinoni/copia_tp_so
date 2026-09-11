@@ -21,23 +21,49 @@ t_config* config = NULL;
 
 int hay_interrupcion = 0; // 0 false || 1 true
 
-void ciclo_de_instruccion(int socket_dispatch, uint32_t jid){
-    int ejecutando = 1;
-    while(ejecutando){
-        // fase del fetch
-        log_info(logger, "## FETCH - PC: %d", registros_cpu.PC);
-        //fase de decode and execute
-        registros_cpu.PC++;
 
-        // chequeo si existe alguna interrupcion
-        if(hay_interrupcion){
-            log_info(logger, "## Interrupción detectada. Desalojando proceso JID: %d...", jid);
-            hay_interrupcion=0;
-            ejecutando = 0;
-            enviar_contexto(socket_dispatch, DESALOJAR_JOB, jid, &registros_cpu);
-        }
+void ciclo_de_instruccion (int socket_dispatch, int socket_placa, uint32_t jid){// denominado fetch, se encarga de captar la proxima instruccion
+   int ejecutando = 1; // seteamos en true
+    while(ejecutando){ // simil bucle infinito, siempre y cuando ejecutando valga 1
+    // fase fetch
+    log_info(logger, "## FETCH - PID: %d - PC: %d", jid, registros_cpu.PC);
+    // pido la instruccion a placa indicando el jid y el PC actual
+    t_paquete * paquete_fetch = crear_paquete(FETCH_INSTRUCCION);  //crea la estructura del paquete en memoria dinamica
+    agregar_a_paquete(paquete_fetch, &jid, sizeof(uint32_t)); // copia el dato real dentro del paquete y actualiza el tamaño total
+    agregar_a_paquete(paquete_fetch, &(registros_cpu.PC), sizeof(uint32_t));
+    enviar_paquete(paquete_fetch, socket_placa);
+    eliminar_paquete(paquete_fetch);
+
+    // esperamos la respuesta de la placa
+    int cod_op = recibir_operacion(socket_placa);
+    if(cod_op != RESPUESTA_INSTRUCCION){
+        log_error(logger, "Error al recibir instruccion de Placa. Codigo recibido: %d", cod_op);
+        break;
     }
-}
+    // recibimos el string de la instruccion
+    int size = 0;
+    char * instruccion = recibir_buffer(&size, socket_placa);
+    log_info(logger, "## Instruccion recibida: %s", instruccion);
+
+    //  fase decode y execute
+
+    registros_cpu.PC ++; // incremento el pc para que apunte a la siguiente instruccion
+
+    free(instruccion);
+
+    // chequeamos interrupt 
+    if(hay_interrupcion){
+        log_info(logger, "## Interrupción detectada. Desalojando proceso JID: %d...", jid);
+        hay_interrupcion = 0;
+        ejecutando = 0;
+
+        // devuelvo el contexto actualizado al planificador por desalojo
+        enviar_contexto(socket_dispatch, DESALOJAR_JOB, jid, &registros_cpu);
+    }
+
+
+    }
+}  
 
 
 int main(int argc, char* argv[]) {
@@ -125,7 +151,7 @@ int main(int argc, char* argv[]) {
             log_info (logger, "## Proceso despachado - JID: %d", jid);
 
             cargar_contexto (&contexto_recibido); // volcamos los datos obtenidos a la variable global registros_cpu
-            ciclo_de_instruccion(socket_planificador, jid); // el core entra a ejecutar las instrucciones del proceso en un bucle local 
+            ciclo_de_instruccion(socket_planificador,socket_placa, jid); // el core entra a ejecutar las instrucciones del proceso en un bucle local 
             break;
         }
         default: // el core recibio un codigo de operacion que el no esperaba del planificador por ese socket
