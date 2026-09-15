@@ -5,7 +5,6 @@
 #include <stdlib.h>
 #include <pthread.h>
 
-
 #include <commons/config.h>
 #include <commons/log.h>
 #include <commons/collections/list.h>
@@ -107,14 +106,10 @@ int main(int argc, char *argv[])
     // Si lo puede admitir --> Pasa a ready (actualizo listo y semaforo)
     // Sino deberia esperar a que baje el grado de multiprogramacion. Podriamos usar un semaforo que cuando finaliza un proograma se ponde en 1 (no es tan neceesario ahora pero es bueno tenerlo en cuenta)
 
-    while (1)
-    {
-        // TENGO QUEE TENER ALGO EN READY Y CORES DISPONIBLES
-        sem_wait(&sem_cola_ready);
-        sem_wait(&sem_cores);
-
-        planificador_corto_plazo();
-    }
+    // Creo el hilo para que siempre este esperando algun job para ejecutar pero sin frenar todo el resto
+    pthread_t hilo_corto_plazo;
+    pthread_create(&hilo_corto_plazo, NULL, planificador_corto_plazo, NULL);
+    pthread_detach(&hilo_corto_plazo);
 
     // Si hay algo en ready, ejecuato planificador de corto plazo
     // Plani de corto plazo --> busco el tipo de algoritmo y segun eso ejecuto
@@ -129,7 +124,20 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-void planificador_corto_plazo()
+void *planificador_corto_plazo(void *arg)
+{
+    while (1)
+    {
+        // TENGO QUEE TENER ALGO EN READY Y CORES DISPONIBLES
+        sem_wait(&sem_cola_ready);
+        sem_wait(&sem_cores);
+        despachar_proceso(); 
+    }
+    
+    NULL;
+}
+
+void despachar_proceso()
 {
 
     char *algoritmo_planificacion = config_get_string_value(config, "ALGORITMO_PLANIFICACION");
@@ -191,13 +199,13 @@ t_core *obtener_core_libre()
     return NULL;
 }
 
-void iniciar_quantum(t_job* job_elegido, t_core* core_elegido)
+void iniciar_quantum(t_job *job_elegido, t_core *core_elegido)
 {
     /*pthread_t hilo_quantum;
     pthread_create(&hilo_quantum,NULL, controlar_quantum, datos);
     pthread_detach(&hilo_quantum);*/
 }
 
-void* controlar_quantum(){
-
+void *controlar_quantum()
+{
 }
