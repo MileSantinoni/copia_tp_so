@@ -8,7 +8,6 @@
 #include <semaphore.h>
 
 
-
 extern t_log *logger;
 extern t_config *config;
 
@@ -50,8 +49,16 @@ extern sem_t sem_cola_block; // DEBERIAN SER DISTINTAS COLAS DE BLOQUEO SEGUN EL
 
 extern sem_t sem_cores;
 
+// LISTAS
 
-void planificador_corto_plazo();
+extern t_list *cola_new;
+extern t_list *cola_ready;
+extern t_list *cola_block;
+
+
+void* planificador_corto_plazo(void* args);
+
+void despachar_proceso();
 t_core *obtener_core_libre();
 void iniciar_quantum(t_job* job, t_core* core);
 

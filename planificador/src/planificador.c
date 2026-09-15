@@ -1,6 +1,7 @@
 #include "servidor.h"
 #include "cliente.h"
 #include "planificador.h"
+#include "plani_corto_plazo.h"
 
 #include <stdlib.h>
 #include <pthread.h>
@@ -12,6 +13,7 @@
 #include <utils/conexion.h>
 #include <utils/comunicacion.h>
 #include <utils/protocolo.h>
+
 
 // VARIABLES DE CONFIGURACION
 
@@ -45,9 +47,6 @@ sem_t sem_cola_block; // DEBERIAN SER DISTINTAS COLAS DE BLOQUEO SEGUN EL MOTIVO
 
 sem_t sem_cores;
 
-// VARIABLE
-
-int quantum;
 
 int main(int argc, char *argv[])
 {
@@ -99,23 +98,20 @@ int main(int argc, char *argv[])
     sem_init(&sem_cola_ready, 0, 0);
     sem_init(&sem_cores, 0, 0);
 
+    // HILOS DE PLANIFICADORES
+    pthread_t hilo_corto_plazo;   // Creo el hilo para que siempre este esperando algun job para ejecutar pero sin frenar todo el resto
+    pthread_create(&hilo_corto_plazo, NULL, planificador_corto_plazo, NULL);
+    pthread_detach(hilo_corto_plazo);
+
     // ESTO LO PUSE DE GUIA
     // Crearlo e inicializarlo --> Pasa a new
     // Le pasamos las instrucciones a placa. Esperrramos su respuesta de confirmacion
     // Plani largo plazo --> se fija el grado de multiprogramacion y se fija si loadmite
-    // Si lo puede admitir --> Pasa a ready (actualizo listo y semaforo)
+    // Si lo puede admitir --> Pasa a ready (actualizo lista y semaforo)
     // Sino deberia esperar a que baje el grado de multiprogramacion. Podriamos usar un semaforo que cuando finaliza un proograma se ponde en 1 (no es tan neceesario ahora pero es bueno tenerlo en cuenta)
 
-    // Creo el hilo para que siempre este esperando algun job para ejecutar pero sin frenar todo el resto
-    pthread_t hilo_corto_plazo;
-    pthread_create(&hilo_corto_plazo, NULL, planificador_corto_plazo, NULL);
-    pthread_detach(&hilo_corto_plazo);
 
-    // Si hay algo en ready, ejecuato planificador de corto plazo
-    // Plani de corto plazo --> busco el tipo de algoritmo y segun eso ejecuto
-    //  --> FIFO, hago pop de la cola de ready
-    //  --> RR,
-    //  --> HHRR,
+  
 
     // Liberar todo
     log_destroy(logger);
@@ -124,63 +120,7 @@ int main(int argc, char *argv[])
     return 0;
 }
 
-void *planificador_corto_plazo(void *arg)
-{
-    while (1)
-    {
-        // TENGO QUEE TENER ALGO EN READY Y CORES DISPONIBLES
-        sem_wait(&sem_cola_ready);
-        sem_wait(&sem_cores);
-        despachar_proceso(); 
-    }
-    
-    NULL;
-}
 
-void despachar_proceso()
-{
-
-    char *algoritmo_planificacion = config_get_string_value(config, "ALGORITMO_PLANIFICACION");
-
-    t_job *job_elegido;
-
-    if (strcmp(algoritmo_planificacion, "RR") == 0 || strcmp(algoritmo_planificacion, "FIFO"))
-    {
-        pthread_mutex_lock(&mutex_cola_ready);
-        job_elegido = (t_job *)list_get(cola_ready, 0);
-        pthread_mutex_unlock(&mutex_cola_ready);
-    }
-    else if (strcmp(algoritmo_planificacion, "HRRN"))
-    {
-        // Falta implementar
-    }
-    else
-    {
-        log_error(logger, "Algoritmo de planificación inválido");
-    }
-
-    job_elegido->estado = EXEC;
-
-    t_core *core_elegido = obtener_core_libre();
-
-    if (core_elegido == NULL)
-    {
-
-        log_error(logger, "Falló algun chequeo anterior porque no debio llegar aca");
-        return;
-    }
-
-    core_elegido->libre = false;
-    core_elegido->jid_actual = job_elegido->jid;
-
-    enviar_contexto(core_elegido->socket, DESPACHAR_JOB, job_elegido->jid, job_elegido->contexto);
-
-    if (strcmp(algoritmo_planificacion, "RR") == 0)
-    {
-        quantum = config_get_int_value(config, "RR_QUANTUM");
-        iniciar_quantum(job_elegido, core_elegido);
-    }
-}
 
 t_core *obtener_core_libre()
 {
@@ -199,13 +139,3 @@ t_core *obtener_core_libre()
     return NULL;
 }
 
-void iniciar_quantum(t_job *job_elegido, t_core *core_elegido)
-{
-    /*pthread_t hilo_quantum;
-    pthread_create(&hilo_quantum,NULL, controlar_quantum, datos);
-    pthread_detach(&hilo_quantum);*/
-}
-
-void *controlar_quantum()
-{
-}
