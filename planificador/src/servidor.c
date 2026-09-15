@@ -13,6 +13,8 @@
 #include <utils/protocolo.h>
 #include <utils/util.h>
 
+int socket_core;
+
 void iniciar_conexion_como_servidor()
 {
 
@@ -53,11 +55,18 @@ void iniciar_conexion_como_servidor()
         pthread_detach(thread);
     }
 }
+bool comparar_por_socket(void *ptr)
+{
+
+    t_core *core = (t_core *)ptr;
+
+    return core->socket == socket_core;
+}
 
 void *atender_core(void *arg)
 {
 
-    int socket_core = *(int *)arg;
+    socket_core = *(int *)arg;
     free(arg);
 
     t_modulo modulo = recibir_handshake(socket_core);
@@ -71,6 +80,17 @@ void *atender_core(void *arg)
 
     int id_core = recibir_core_id(socket_core);
     log_info(logger, "ID CORE: %i", id_core);
+
+    t_core *nuevo_core = malloc(sizeof(t_core));
+
+    nuevo_core->id_core = id_core;
+    nuevo_core->jid_actual = -1;
+    nuevo_core->libre = false;
+    nuevo_core->socket = socket_core;
+
+    pthread_mutex_lock(&mutex_lista_core);
+    list_add(lista_cores, nuevo_core);
+    pthread_mutex_unlock(&mutex_lista_core);
     sem_post(&sem_cores);
 
     // Recibo operaciones de CORE
@@ -80,7 +100,15 @@ void *atender_core(void *arg)
     if (codigo_operacion == -1)
     {
         log_warning(logger, "Se desconecto CORE");
+
+        pthread_mutex_lock(&mutex_lista_core);
+        t_core *core_a_eliminar = (t_core *)list_remove_by_condition(lista_cores, comparar_por_socket);
+        pthread_mutex_unlock(&mutex_lista_core);
+
+        free(core_a_eliminar);
+
         sem_wait(&sem_cores);
+
         return NULL;
     }
 
@@ -97,7 +125,22 @@ void *atender_core(void *arg)
         enviar_mensaje("CONFIRMACION_RECIBIDA", socket_core);
         break;
     }
-    
+    case DEVOLVER_CONTEXTO:
+    {
+        u_int32_t jid;
+        t_registros registros;
+        recibir_contexto(socket_core, &jid, &registros);
+
+        t_job *job_encontrado = buscar_por_jid(lista_jobs, jid);
+
+        if (job_encontrado == NULL)
+        {
+            log_error(logger, "No se encontro un JOB par jid :u%u", jid);
+            break;
+        }
+
+        job_encontrado->contexto=&registros;
+    }
 
     default:
         log_warning(logger, "## Código de operación desconocido: %d", codigo_operacion);

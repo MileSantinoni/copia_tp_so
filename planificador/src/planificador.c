@@ -14,39 +14,32 @@
 #include <utils/comunicacion.h>
 #include <utils/protocolo.h>
 
-
 // VARIABLES DE CONFIGURACION
 
 t_log *logger;
 t_config *config;
 
-// LISTAS
-//// COLAS DE ESTADOS
+// LISTA DE TODOS LOS JOBS
+
+t_list *lista_jobs;
+
+// COLAS DE ESTADO
 
 t_list *cola_new;
-t_list *cola_ready;
-t_list *cola_block; // DEBERIAN SER DISTINTAS COLAS DE BLOQUEO SEGUN EL MOTIVO
 
-//// CORES
+t_list *cola_ready;
+pthread_mutex_t mutex_cola_ready;
+sem_t sem_cola_ready;
+
+t_list *cola_block; // DEBERIAN SER DISTINTAS COLAS DE BLOQUEO SEGUN EL MOTIVO
+pthread_mutex_t mutex_cola_block;
+sem_t sem_cola_block;
+
+// LISTA CORES
 
 t_list *lista_cores;
-
-// MUTEX
-//// DE COLAS DE ESTADO
-
-pthread_mutex_t mutex_cola_ready;
-pthread_mutex_t mutex_cola_block; // DEBERIAN SER DISTINTAS COLAS DE BLOQUEO SEGUN EL MOTIVO
-
-// SEMAFOROS
-//// DE COLAS DE ESTADO
-
-sem_t sem_cola_ready;
-sem_t sem_cola_block; // DEBERIAN SER DISTINTAS COLAS DE BLOQUEO SEGUN EL MOTIVO
-
-//// PARA VER SI HAY CORES DISPONIBLES
-
+pthread_mutex_t mutex_lista_core;
 sem_t sem_cores;
-
 
 int main(int argc, char *argv[])
 {
@@ -89,17 +82,14 @@ int main(int argc, char *argv[])
     // Obtener el nombre del Job inicial. argv[2] = nombre del job
     char *path_job_inicial = argv[2];
 
-    // INICIALIZAR MUTEX
+    void incializar_mutex();
 
-    pthread_mutex_init(&mutex_cola_ready, NULL);
+    void incializar_semaforos();
 
-    // INICIALIZAR SEMAFOROSS
-
-    sem_init(&sem_cola_ready, 0, 0);
-    sem_init(&sem_cores, 0, 0);
+    void incializar_listas();
 
     // HILOS DE PLANIFICADORES
-    pthread_t hilo_corto_plazo;   // Creo el hilo para que siempre este esperando algun job para ejecutar pero sin frenar todo el resto
+    pthread_t hilo_corto_plazo; // Creo el hilo para que siempre este esperando algun job para ejecutar pero sin frenar todo el resto
     pthread_create(&hilo_corto_plazo, NULL, planificador_corto_plazo, NULL);
     pthread_detach(hilo_corto_plazo);
 
@@ -110,9 +100,6 @@ int main(int argc, char *argv[])
     // Si lo puede admitir --> Pasa a ready (actualizo lista y semaforo)
     // Sino deberia esperar a que baje el grado de multiprogramacion. Podriamos usar un semaforo que cuando finaliza un proograma se ponde en 1 (no es tan neceesario ahora pero es bueno tenerlo en cuenta)
 
-
-  
-
     // Liberar todo
     log_destroy(logger);
     config_destroy(config);
@@ -120,7 +107,29 @@ int main(int argc, char *argv[])
     return 0;
 }
 
+void incializar_mutex()
+{
 
+    pthread_mutex_init(&mutex_cola_ready, NULL);
+    pthread_mutex_init(&mutex_lista_core, NULL);
+}
+
+void incializar_semaforos()
+{
+    sem_init(&sem_cola_ready, 0, 0);
+    sem_init(&sem_cores, 0, 0);
+}
+
+void incializar_listas()
+{
+    cola_new = list_create();
+    cola_ready = list_create();
+    cola_block = list_create();
+
+    lista_cores = list_create();
+
+    lista_jobs = list_create();
+}
 
 t_core *obtener_core_libre()
 {
@@ -139,3 +148,17 @@ t_core *obtener_core_libre()
     return NULL;
 }
 
+t_job *buscar_por_jid(t_list *lista_job, u_int32_t jid)
+{
+
+    for (int i = 0; i < list_size(lista_job); i++)
+    {
+        t_job *job_actual = (t_job *)list_get(lista_job, i);
+
+        if (job_actual->jid == jid)
+        {
+            return job_actual;
+        }
+    }
+    return NULL;
+}

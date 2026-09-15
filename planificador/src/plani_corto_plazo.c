@@ -31,7 +31,7 @@ void despachar_proceso()
     if (strcmp(algoritmo_planificacion, "RR") == 0 || strcmp(algoritmo_planificacion, "FIFO"))
     {
         pthread_mutex_lock(&mutex_cola_ready);
-        job_elegido = (t_job *)list_get(cola_ready, 0);
+        job_elegido = (t_job *)list_remove(cola_ready, 0);
         pthread_mutex_unlock(&mutex_cola_ready);
     }
     else if (strcmp(algoritmo_planificacion, "HRRN"))
@@ -45,8 +45,9 @@ void despachar_proceso()
 
     job_elegido->estado = EXEC;
 
+    pthread_mutex_lock(&mutex_lista_core);
     t_core *core_elegido = obtener_core_libre();
-
+   
     if (core_elegido == NULL)
     {
 
@@ -54,9 +55,9 @@ void despachar_proceso()
         return;
     }
 
-    // DEBERIA IR MUTEX DE COREE(???????)
     core_elegido->libre = false;
     core_elegido->jid_actual = job_elegido->jid;
+    pthread_mutex_unlock(&mutex_lista_core);
 
     enviar_contexto(core_elegido->socket, DESPACHAR_JOB, job_elegido->jid, job_elegido->contexto);
 

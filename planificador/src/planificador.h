@@ -33,33 +33,36 @@ typedef struct{
 
 }t_core;
 
+void incializar_mutex();
+void incializar_semaforos();
+void incializar_listas();
 
-// MUTEX DE COLAS DE ESTADO
+// LISTA DE TODOS LOS JOBS
 
-extern pthread_mutex_t mutex_cola_ready;
-extern pthread_mutex_t mutex_cola_block; // DEBERIAN SER DISTINTAS COLAS DE BLOQUEO SEGUN EL MOTIVO
+extern t_list *lista_jobs;
 
-// SEMAFORO 
-//// DE COLAS DE ESTADO
-
-extern sem_t sem_cola_ready;
-extern sem_t sem_cola_block; // DEBERIAN SER DISTINTAS COLAS DE BLOQUEO SEGUN EL MOTIVO
-
-//// SEMAFORO PARA VER SI HAY CORES DISPONIBLES
-
-extern sem_t sem_cores;
-
-// LISTAS
+// COLAS DE ESTADO
 
 extern t_list *cola_new;
+
 extern t_list *cola_ready;
-extern t_list *cola_block;
+extern pthread_mutex_t mutex_cola_ready;
+extern sem_t sem_cola_ready;
 
+extern t_list *cola_block; // DEBERIAN SER DISTINTAS COLAS DE BLOQUEO SEGUN EL MOTIVO
+extern pthread_mutex_t mutex_cola_block; 
+extern sem_t sem_cola_block;
 
-void* planificador_corto_plazo(void* args);
+// LISTA CORES
 
-void despachar_proceso();
+extern t_list *lista_cores;
+extern pthread_mutex_t mutex_lista_core;
+extern sem_t sem_cores;
+
+// FUNCIONES GENERALES
+
 t_core *obtener_core_libre();
-void iniciar_quantum(t_job* job, t_core* core);
+t_job *buscar_por_jid(t_list *lista_job, u_int32_t jid);
+
 
 #endif
