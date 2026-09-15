@@ -149,14 +149,14 @@ void saludar(char* quien)
 
 // funciones para el check 2 
 
-void enviar_contexto (int socket_destino, op_code codigo, uint32_t jid, t_registros_cpu * registros ){ // uint_32 jid, sirve como identificador de cada proceso 
+void enviar_contexto (int socket_destino, op_code codigo, uint32_t jid, t_registros * registros ){ // uint_32 jid, sirve como identificador de cada proceso 
   t_paquete * paquete = crear_paquete(codigo);
 
   // Empaquetamos id del proceso
   agregar_a_paquete (paquete, &jid, sizeof(uint32_t));
  
   // Empaquetamos el bloque con los 14 registros definidos en t_registros
-  agregar_a_paquete(paquete, registros, sizeof(t_registros_cpu));
+  agregar_a_paquete(paquete, registros, sizeof(t_registros));
 
   // serializar y enviar por red
   enviar_paquete(paquete, socket_destino);
@@ -165,7 +165,7 @@ void enviar_contexto (int socket_destino, op_code codigo, uint32_t jid, t_regist
   eliminar_paquete(paquete);
 } 
 
-void recibir_contexto (int socket_origen, uint32_t *jid, t_registros_cpu * registros){
+void recibir_contexto (int socket_origen, uint32_t *jid, t_registros * registros){
 	int size;
 	void * buffer = recibir_buffer(&size, socket_origen); // variable vacia para que la funcion la complete con lo que leyo en la red
 	int desplazamiento = 0; // lo utilizo para saber en la posicion exacta de memoria que estoy parado
@@ -182,8 +182,8 @@ void recibir_contexto (int socket_origen, uint32_t *jid, t_registros_cpu * regis
 
 	memcpy(&tamanio_campo, buffer + desplazamiento, sizeof(int));
 	desplazamiento += sizeof(int);
-	memcpy(registros, buffer + desplazamiento, sizeof(t_registros_cpu));
-	desplazamiento += sizeof(t_registros_cpu);
+	memcpy(registros, buffer + desplazamiento, sizeof(t_registros));
+	desplazamiento += sizeof(t_registros);
 
 	free(buffer);
 }

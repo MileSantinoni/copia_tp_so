@@ -1,14 +1,14 @@
 #include "registro.h"
 #include <string.h>
 
-t_registros_cpu registros_cpu;
+t_registros registros_cpu;
 
 void incializar_registros(void){
-    memset(&registros_cpu, 0, sizeof(t_registros_cpu)); // inicializo todos los registros declarados anteriormente en cero 
+    memset(&registros_cpu, 0, sizeof(t_registros)); // inicializo todos los registros declarados anteriormente en cero 
 }
 
-void cargar_contexto(t_registros_cpu * registros_nuevos){
-    memcpy(&registros_cpu, registros_nuevos , sizeof(t_registros_cpu)); // destino -> origen -> cant de bytes 
+void cargar_contexto(t_registros * registros_nuevos){
+    memcpy(&registros_cpu, registros_nuevos , sizeof(t_registros)); // destino -> origen -> cant de bytes 
 }
 
 uint32_t obtener_valor_registro(char * nombre_registro){

@@ -71,6 +71,7 @@ void *atender_core(void *arg)
 
     int id_core = recibir_core_id(socket_core);
     log_info(logger, "ID CORE: %i", id_core);
+    sem_post(&sem_cores);
 
     // Recibo operaciones de CORE
 
@@ -79,6 +80,7 @@ void *atender_core(void *arg)
     if (codigo_operacion == -1)
     {
         log_warning(logger, "Se desconecto CORE");
+        sem_wait(&sem_cores);
         return NULL;
     }
 
@@ -95,6 +97,8 @@ void *atender_core(void *arg)
         enviar_mensaje("CONFIRMACION_RECIBIDA", socket_core);
         break;
     }
+    
+
     default:
         log_warning(logger, "## Código de operación desconocido: %d", codigo_operacion);
         break;
