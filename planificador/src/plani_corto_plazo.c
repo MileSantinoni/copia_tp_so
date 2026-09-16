@@ -28,7 +28,7 @@ void despachar_proceso()
 
     t_job *job_elegido;
 
-    if (strcmp(algoritmo_planificacion, "RR") == 0 || strcmp(algoritmo_planificacion, "FIFO"))
+    if (strcmp(algoritmo_planificacion, "RR") == 0 || strcmp(algoritmo_planificacion, "FIFO") == 0 )
     {
         pthread_mutex_lock(&mutex_cola_ready);
         job_elegido = (t_job *)list_remove(cola_ready, 0);

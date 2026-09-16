@@ -75,18 +75,21 @@ int main(int argc, char *argv[])
 
     // Parte servidor
 
-    iniciar_conexion_como_servidor();
+    pthread_t hilo_servidor; 
+    pthread_create(&hilo_servidor, NULL, iniciar_conexion_como_servidor, NULL);
+    pthread_detach(hilo_servidor);
 
+    
     // PARTE CENTRAL
 
     // Obtener el nombre del Job inicial. argv[2] = nombre del job
     char *path_job_inicial = argv[2];
 
-    void incializar_mutex();
+   incializar_mutex();
 
-    void incializar_semaforos();
+    incializar_semaforos();
 
-    void incializar_listas();
+    incializar_listas();
 
     // HILOS DE PLANIFICADORES
     pthread_t hilo_corto_plazo; // Creo el hilo para que siempre este esperando algun job para ejecutar pero sin frenar todo el resto

@@ -85,7 +85,7 @@ void *atender_core(void *arg)
 
     nuevo_core->id_core = id_core;
     nuevo_core->jid_actual = -1;
-    nuevo_core->libre = false;
+    nuevo_core->libre = true;
     nuevo_core->socket = socket_core;
 
     pthread_mutex_lock(&mutex_lista_core);
@@ -140,6 +140,10 @@ void *atender_core(void *arg)
         }
 
         job_encontrado->contexto=&registros;
+
+
+        // Liberar el core
+        // M
     }
 
     default:
