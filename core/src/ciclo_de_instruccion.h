@@ -18,4 +18,6 @@ uint32_t obtener_valor_operando(char *operando);
 
 t_resultado_ejecucion ejecutar_instruccion(t_instruccion *instruccion, uint32_t jid);
 
+void verificar_interrupcion(int socket_planificador);
+
 #endif 

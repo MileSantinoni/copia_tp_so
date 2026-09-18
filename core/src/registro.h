@@ -19,6 +19,6 @@ uint32_t obtener_valor_registro ( char* nombre_registro);
 
 // escribir un valor en un registro pasando su nombre como string
 bool asignar_valor_registro (char * nombre_registro, uint32_t valor);
-bool setear_valor_registro(char *nombre_registro, uint32_t valor);
+//bool setear_valor_registro(char *nombre_registro, uint32_t valor);
 
 #endif

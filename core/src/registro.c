@@ -29,7 +29,7 @@ uint32_t obtener_valor_registro(char * nombre_registro){
     return 0;
 }
 
-bool setear_valor_registro (char * nombre_registro, uint32_t valor){
+bool asignar_valor_registro (char * nombre_registro, uint32_t valor){
     if (strcmp(nombre_registro, "PC") == 0) { registros_cpu.PC = valor; return true; } // si coincide el registro, entocnes a ese registro  se le asigna el valor correspondiente
     if (strcmp(nombre_registro, "AX") == 0) { registros_cpu.AX = valor; return true; }
     if (strcmp(nombre_registro, "BX") == 0) { registros_cpu.BX = valor; return true; }

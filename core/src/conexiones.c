@@ -10,32 +10,35 @@
 #include <errno.h>
 #include <pthread.h>
 
-
 int socket_placa;
 int socket_planificador;
 
-int conectar_con_planificador(char* ip, char* puerto, int id_core) {
+int conectar_con_planificador(char *ip, char *puerto, int id_core)
+{
     log_info(logger, "Intentando conectar con Planificador (%s:%s)...", ip, puerto);
-    
+
     socket_planificador = crear_conexion(ip, puerto);
-    if (socket_planificador == -1) {
+    if (socket_planificador == -1)
+    {
         log_error(logger, "No se pudo conectar con el Planificador en %s:%s", ip, puerto);
         return -1;
     }
 
     enviar_handshake(socket_planificador, CORE);
-    enviar_id(socket_planificador,id_core);
+    enviar_id(socket_planificador, id_core);
     log_info(logger, "## Conectado a Planificador exitosamente");
-    
+
     return socket_planificador;
 }
 
-int conectar_con_placa(char* ip, char* puerto, int id_core) {
+int conectar_con_placa(char *ip, char *puerto, int id_core)
+{
     log_info(logger, "Intentando conectar con Placa (%s:%s)...", ip, puerto);
-    
+
     socket_placa = crear_conexion(ip, puerto);
-    
-    if (socket_placa == -1) {
+
+    if (socket_placa == -1)
+    {
         log_error(logger, "No se pudo conectar con la Placa en %s:%s", ip, puerto);
         return -1;
     }
@@ -43,13 +46,14 @@ int conectar_con_placa(char* ip, char* puerto, int id_core) {
     enviar_handshake(socket_placa, CORE);
     enviar_id(socket_placa, id_core);
     log_info(logger, "## Conectado a Placa exitosamente");
-    
+
     return socket_placa;
 }
 
-void enviar_id(int socket, int id){
+void enviar_id(int socket, int id)
+{
 
-    t_paquete* paquete = crear_paquete(ENVIO_ID);
+    t_paquete *paquete = crear_paquete(ENVIO_ID);
 
     agregar_a_paquete(paquete, &id, sizeof(int));
     enviar_paquete(paquete, socket);
@@ -64,7 +68,7 @@ void crear_hilo_escucha(void)
 {
 
     if (pthread_create(&hilo_escucha, NULL, escuchar_servidores, NULL) != 0) // chequear si el hilo se creo correctamente
-    { 
+    {
         log_error(logger, "No se pudo crear el hilo de escucha");
         exit(EXIT_FAILURE);
     }
@@ -72,7 +76,8 @@ void crear_hilo_escucha(void)
     log_info(logger, "Hilo de escucha de Placa y Planificador iniciado");
 }
 
-void* escuchar_servidores(void *arg){
+void *escuchar_servidores(void *arg)
+{
 
     while (1) // TODO: recibir y procesar mensajes de Placa y Planificador
     {
@@ -80,22 +85,24 @@ void* escuchar_servidores(void *arg){
 
         FD_ZERO(&sockets); // Incializa la lista de sockets
 
-        FD_SET(socket_placa, &sockets); // Agrego los sockets a la lista 
-        FD_SET(socket_planificador, &sockets); // Agrego los sockets a la lista 
+        // FD_SET(socket_placa, &sockets);        // Agrego los sockets a la lista // saco el de la placa para uqe no compitan
+        FD_SET(socket_planificador, &sockets); // Agrego los sockets a la lista
 
-        // La funcion select necesita saber cual es el numero de socket mas grande 
+        // La funcion select necesita saber cual es el numero de socket mas grande
 
-        int max_socket = socket_placa;
+        // int max_socket = socket_placa;
 
-        if (socket_planificador > max_socket)
-        {
-            max_socket = socket_planificador;
-        }
+        // if (socket_planificador > max_socket)
+        // {
+        //     max_socket = socket_planificador;
+        // }
+
+       //acá se realizan cambios para evitar la condicion de carrera en la escucha de hilos 
 
         // Se queda esperando a que alguno de los sockets tenga datos listos para leer
-        int resultado = select(max_socket + 1, &sockets, NULL, NULL, NULL); // Devuelve la cantidad de sockets que tiene algo para leer
+        int resultado = select(socket_planificador + 1, &sockets, NULL, NULL, NULL); 
 
-        if (resultado == -1) //  Chequeo que select sea valido  
+        if (resultado == -1) //  Chequeo que select sea valido
         {
             if (errno == EINTR)
             {
@@ -106,48 +113,32 @@ void* escuchar_servidores(void *arg){
             break;
         }
 
-        if (FD_ISSET(socket_placa, &sockets)) //  Me fijo si el socket de PLACA fue el que se activo 
-        {
-
-            int cod_op = recibir_operacion(socket_placa);
-
-            if (cod_op == -1)
-            {
-                log_warning(logger, "Se desconecto PLACA");
-                exit(EXIT_FAILURE);
-            }
-
-            switch (cod_op)
-            {
-            case PAQUETE:
-            {
-                t_list *paquete = recibir_paquete(socket_placa);
-
-                // procesar paquete
-
-                list_destroy_and_destroy_elements(paquete, free);
-                break;
-            }
-
-            default:
-                log_warning(logger, "Operacion desconocida desde PLACA: %d", cod_op);
-                break;
-            }
-        }
-
-        if (FD_ISSET(socket_planificador, &sockets)) //  Me fijo si el socket de PLANIFICADOR fue el que se activo 
+        if (FD_ISSET(socket_planificador, &sockets)) //  Me fijo si el socket de PLACA fue el que se activo
         {
 
             int cod_op = recibir_operacion(socket_planificador);
 
             if (cod_op == -1)
             {
-                log_warning(logger, "Se desconecto PLANIFICADOR");
+                log_warning(logger, "Se desconecto el PLANIFICADOR");
                 exit(EXIT_FAILURE);
             }
 
             switch (cod_op)
             {
+            case INTERRUPCION:  // aca era DESALOJAR_JOB
+            {
+                    int size;
+                    char *buffer = recibir_buffer(&size, socket_planificador);
+                    if (buffer != NULL) {
+                        free(buffer);
+                    }
+
+                    log_info(logger, "## Interrupción recibida");
+                    hay_interrupcion = 1; 
+                    break;
+            }
+
             case MENSAJE:
             {
                 int size;
@@ -161,10 +152,31 @@ void* escuchar_servidores(void *arg){
             }
 
             default:
-                log_warning(logger, "Operacion desconocida desde PLANIFICADOR: %d", cod_op);
+                log_warning(logger, "Operacion desconocida desde PLACA: %d", cod_op);
                 break;
             }
         }
+
+        // if (FD_ISSET(socket_planificador, &sockets)) //  Me fijo si el socket de PLANIFICADOR fue el que se activo
+        // {
+
+        //     int cod_op = recibir_operacion(socket_planificador);
+
+        //     if (cod_op == -1)
+        //     {
+        //         log_warning(logger, "Se desconecto PLANIFICADOR");
+        //         exit(EXIT_FAILURE);
+        //     }
+
+        //     switch (cod_op)
+        //     {
+            
+
+        //     default:
+        //         log_warning(logger, "Operacion desconocida desde PLANIFICADOR: %d", cod_op);
+        //         break;
+        //     }
+        // }
     }
     return NULL;
 }

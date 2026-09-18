@@ -15,129 +15,10 @@
 #include <utils/protocolo.h>
 #include <utils/util.h>
 
-//t_log *logger = NULL;
-//t_config *config = NULL;
+t_log *logger = NULL;
+t_config *config = NULL;
 
 int hay_interrupcion = 0; // 0 false || 1 true
-
-void ciclo_de_instruccion(int socket_dispatch, int socket_placa, uint32_t jid)
-{                       // denominado fetch, se encarga de captar la proxima instruccion
-    int ejecutando = 1; // seteamos en true
-    while (ejecutando)
-    { // simil bucle infinito, siempre y cuando ejecutando valga 1
-        // fase fetch
-        log_info(logger, "## FETCH - PID: %d - PC: %d", jid, registros_cpu.PC);
-        // pido la instruccion a placa indicando el jid y el PC actual
-        t_paquete *paquete_fetch = crear_paquete(FETCH_INSTRUCCION); // crea la estructura del paquete en memoria dinamica
-        agregar_a_paquete(paquete_fetch, &jid, sizeof(uint32_t));    // copia el dato real dentro del paquete y actualiza el tamaño total
-        agregar_a_paquete(paquete_fetch, &(registros_cpu.PC), sizeof(uint32_t));
-        enviar_paquete(paquete_fetch, socket_placa);
-        eliminar_paquete(paquete_fetch);
-
-        // esperamos la respuesta de la placa
-        int cod_op = recibir_operacion(socket_placa);
-        if (cod_op != RESPUESTA_INSTRUCCION)
-        {
-            log_error(logger, "Error al recibir instruccion de Placa. Codigo recibido: %d", cod_op);
-            break;
-        }
-        // recibimos el string de la instruccion
-        int size = 0;
-        char *instruccion = recibir_buffer(&size, socket_placa);
-        log_info(logger, "## Instruccion recibida: %s", instruccion);
-
-        //  fase decode y execute
-
-        registros_cpu.PC++; // incremento el pc para que apunte a la siguiente instruccion
-
-        free(instruccion);
-
-        // chequeamos interrupt
-        if (hay_interrupcion)
-        {
-            log_info(logger, "## Interrupción detectada. Desalojando proceso JID: %d...", jid);
-            hay_interrupcion = 0;
-            ejecutando = 0;
-
-            // devuelvo el contexto actualizado al planificador por desalojo
-            enviar_contexto(socket_dispatch, DEVOLVER_CONTEXTO, jid, &registros_cpu);
-        }
-    }
-}
-
-void setear_valor_registro(char *nombre_registro, uint32_t valor)
-{
-    if (strcmp(nombre_registro, "PC") == 0)
-    {
-        registros_cpu.PC = valor;
-        return;
-    } // extraemos el valor y lo guardamos en el registro que segun matcheen
-    if (strcmp(nombre_registro, "AX") == 0)
-    {
-        registros_cpu.AX = valor;
-        return;
-    }
-    if (strcmp(nombre_registro, "BX") == 0)
-    {
-        registros_cpu.BX = valor;
-        return;
-    }
-    if (strcmp(nombre_registro, "CX") == 0)
-    {
-        registros_cpu.CX = valor;
-        return;
-    }
-    if (strcmp(nombre_registro, "DX") == 0)
-    {
-        registros_cpu.DX = valor;
-        return;
-    }
-    if (strcmp(nombre_registro, "P0") == 0)
-    {
-        registros_cpu.P0 = valor;
-        return;
-    }
-    if (strcmp(nombre_registro, "P1") == 0)
-    {
-        registros_cpu.P1 = valor;
-        return;
-    }
-    if (strcmp(nombre_registro, "P2") == 0)
-    {
-        registros_cpu.P2 = valor;
-        return;
-    }
-    if (strcmp(nombre_registro, "P3") == 0)
-    {
-        registros_cpu.P3 = valor;
-        return;
-    }
-    if (strcmp(nombre_registro, "P4") == 0)
-    {
-        registros_cpu.P4 = valor;
-        return;
-    }
-    if (strcmp(nombre_registro, "P5") == 0)
-    {
-        registros_cpu.P5 = valor;
-        return;
-    }
-    if (strcmp(nombre_registro, "E1") == 0)
-    {
-        registros_cpu.E1 = valor;
-        return;
-    }
-    if (strcmp(nombre_registro, "E2") == 0)
-    {
-        registros_cpu.E2 = valor;
-        return;
-    }
-    if (strcmp(nombre_registro, "E3") == 0)
-    {
-        registros_cpu.E3 = valor;
-        return;
-    }
-}
 
 int main(int argc, char *argv[])
 {
@@ -222,7 +103,7 @@ int main(int argc, char *argv[])
     // Una variable global protegida con mutex.
     // O select() en un único loop que reciba tanto despachos como interrupciones.
     
-    crear_hilo_escucha();
+    // crear_hilo_escucha();
     while (1)
     {
         int cod_op = recibir_operacion(socket_planificador); // asigno lo que recibo del planificador, recibo la operacion en este caso
@@ -246,13 +127,48 @@ int main(int argc, char *argv[])
             break;
         }
         
+        case INTERRUPCION:
+        {
+            int size;
+    char *buffer = recibir_buffer(&size, socket_planificador);
+
+    if (buffer == NULL)
+    {
+        log_error(logger, "No se pudo recibir la interrupción");
+        break;
+    }
+
+    uint32_t jid_interrumpido;
+    t_motivo_desalojo motivo;
+
+    memcpy(&jid_interrumpido, buffer, sizeof(uint32_t));
+    memcpy(
+        &motivo,
+        buffer + sizeof(uint32_t),
+        sizeof(t_motivo_desalojo)
+    );
+
+    free(buffer);
+
+    log_info(
+        logger,
+        "## Interrupción recibida - JID: %u - Motivo: %d",
+        jid_interrumpido,
+        motivo
+    );
+
+    hay_interrupcion = 1;
+
+    break;
+        }
+
         default: // el core recibio un codigo de operacion que el no esperaba del planificador por ese socket
             log_warning(logger, "Operación no reconocida del Planificador: %d", cod_op);
             break;
         }
     }
 
-    escuchar_servidores(NULL);
+   // escuchar_servidores(NULL);
 
     liberar_conexion(socket_planificador);
     liberar_conexion(socket_placa);

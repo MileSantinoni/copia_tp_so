@@ -8,7 +8,7 @@
 
 extern t_log* logger;
 extern t_config* config;
-extern int hay_interrupcion;;
+extern int hay_interrupcion;
 
 typedef enum {
     EJECUCION_CONTINUA,

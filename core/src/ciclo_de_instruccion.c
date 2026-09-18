@@ -1,10 +1,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <errno.h>
 
 #include "core.h"
 #include "registro.h"
 #include "ciclo_de_instruccion.h"
+#include "registro.h"
 #include <utils/comunicacion.h>
 #include <utils/protocolo.h>
 
@@ -94,6 +96,8 @@ void ciclo_de_instruccion(int socket_dispatch, int socket_placa, uint32_t jid)
         if (registros_cpu.PC == pc_anterior) {
             registros_cpu.PC++;
         }
+
+        verificar_interrupcion(socket_dispatch);
 
 
         // registros_cpu.PC++; // incremento el pc para que apunte a la siguiente instruccion
@@ -331,4 +335,97 @@ t_resultado_ejecucion ejecutar_instruccion(
     );
 
     return EJECUCION_CONTINUA;
+}
+
+void verificar_interrupcion(int socket_planificador)
+{
+    fd_set sockets;
+    struct timeval timeout;
+
+    FD_ZERO(&sockets);
+    FD_SET(socket_planificador, &sockets);
+
+    timeout.tv_sec = 0;
+    timeout.tv_usec = 0;
+
+    int resultado = select(
+        socket_planificador + 1,
+        &sockets,
+        NULL,
+        NULL,
+        &timeout
+    );
+
+    if (resultado == -1)
+    {
+        if (errno == EINTR)
+            return;
+
+        log_error(logger, "Error en select() al verificar interrupción");
+        return;
+    }
+
+    if (resultado > 0 &&
+        FD_ISSET(socket_planificador, &sockets))
+    {
+        int cod_op = recibir_operacion(socket_planificador);
+
+        if (cod_op == -1)
+        {
+            log_error(logger, "El Planificador se desconectó");
+            return;
+        }
+
+        if (cod_op == INTERRUPCION)
+        {
+            int size;
+            char *buffer = recibir_buffer(
+                &size,
+                socket_planificador
+            );
+
+            if (buffer == NULL)
+            {
+                log_error(
+                    logger,
+                    "No se pudo recibir el contenido de la interrupción"
+                );
+                return;
+            }
+
+            uint32_t jid_interrumpido;
+            t_motivo_desalojo motivo;
+
+            memcpy(
+                &jid_interrumpido,
+                buffer,
+                sizeof(uint32_t)
+            );
+
+            memcpy(
+                &motivo,
+                buffer + sizeof(uint32_t),
+                sizeof(t_motivo_desalojo)
+            );
+
+            free(buffer);
+
+            log_info(
+                logger,
+                "## Interrupción recibida - JID: %u - Motivo: %d",
+                jid_interrumpido,
+                motivo
+            );
+
+            hay_interrupcion = 1;
+        }
+        else
+        {
+            log_warning(
+                logger,
+                "Operación inesperada durante ejecución: %d",
+                cod_op
+            );
+        }
+    }
 }
