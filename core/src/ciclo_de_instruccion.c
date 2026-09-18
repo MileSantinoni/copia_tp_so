@@ -108,7 +108,8 @@ void ciclo_de_instruccion(int socket_dispatch, int socket_placa, uint32_t jid)
             ejecutando = 0;
 
             // devuelvo el contexto actualizado al planificador por desalojo
-            enviar_contexto(socket_dispatch, DESALOJAR_JOB, jid, &registros_cpu);
+            enviar_contexto(socket_dispatch, DEVOLVER_CONTEXTO, jid, &registros_cpu);
+            
         }
     }
 }
