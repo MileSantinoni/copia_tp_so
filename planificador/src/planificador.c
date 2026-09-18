@@ -2,6 +2,7 @@
 #include "cliente.h"
 #include "planificador.h"
 #include "plani_corto_plazo.h"
+#include "plani_largo_plazo.h"
 
 #include <stdlib.h>
 #include <pthread.h>
@@ -34,6 +35,12 @@ sem_t sem_cola_ready;
 t_list *cola_block; // DEBERIAN SER DISTINTAS COLAS DE BLOQUEO SEGUN EL MOTIVO
 pthread_mutex_t mutex_cola_block;
 sem_t sem_cola_block;
+
+pthread_mutex_t mutex_cola_new;
+sem_t sem_cola_new;
+
+sem_t sem_cupo_multiprogramacion;
+int grado_max_multiprogramacion;
 
 // LISTA CORES
 
@@ -103,6 +110,16 @@ int main(int argc, char *argv[])
     // Si lo puede admitir --> Pasa a ready (actualizo lista y semaforo)
     // Sino deberia esperar a que baje el grado de multiprogramacion. Podriamos usar un semaforo que cuando finaliza un proograma se ponde en 1 (no es tan neceesario ahora pero es bueno tenerlo en cuenta)
 
+    pthread_t hilo_largo_plazo;
+    pthread_create(&hilo_largo_plazo, NULL, planificador_largo_plazo, NULL);
+    pthread_detach(hilo_largo_plazo);
+
+    // Job inicial: se crea, se le avisa a la Placa, y se encola en NEW
+    t_job *job_inicial = crear_job(0);
+    enviar_crear_job_a_placa(0, path_job_inicial);
+    encolar_new(job_inicial);
+
+
     // Liberar todo
     log_destroy(logger);
     config_destroy(config);
@@ -115,12 +132,17 @@ void incializar_mutex()
 
     pthread_mutex_init(&mutex_cola_ready, NULL);
     pthread_mutex_init(&mutex_lista_core, NULL);
+    pthread_mutex_init(&mutex_cola_new, NULL);
 }
 
 void incializar_semaforos()
 {
     sem_init(&sem_cola_ready, 0, 0);
     sem_init(&sem_cores, 0, 0);
+    sem_init(&sem_cola_new, 0, 0);
+    grado_max_multiprogramacion = config_get_int_value(config, "GRADO_MULTIPROGRAMACION");
+    sem_init(&sem_cupo_multiprogramacion, 0, grado_max_multiprogramacion); //inicializo el semáforo de cupo con el valor del grado de multiprogramación, no en 0 (es un semáforo contador, no uno de señalización)
+    
 }
 
 void incializar_listas()
