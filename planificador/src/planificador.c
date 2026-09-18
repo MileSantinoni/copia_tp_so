@@ -48,8 +48,6 @@ sem_t sem_cola_block;
 sem_t sem_cupo_multiprogramacion;
 int grado_max_multiprogramacion;
 
-
-
 int main(int argc, char *argv[])
 {
 
@@ -98,19 +96,21 @@ int main(int argc, char *argv[])
     incializar_listas();
 
     // HILOS DE PLANIFICADORES
-    pthread_t hilo_corto_plazo;
-    pthread_create(&hilo_corto_plazo, NULL, planificador_corto_plazo, NULL);
-    pthread_detach(hilo_corto_plazo);
 
     pthread_t hilo_largo_plazo;
     pthread_create(&hilo_largo_plazo, NULL, planificador_largo_plazo, NULL);
-    pthread_detach(hilo_largo_plazo);
+    //pthread_detach(hilo_largo_plazo);
+
+    pthread_t hilo_corto_plazo;
+    pthread_create(&hilo_corto_plazo, NULL, planificador_corto_plazo, NULL);
+ 
 
     // Job inicial: se crea, se le avisa a la Placa, y se encola en NEW
     t_job *job_inicial = crear_job(0);
     enviar_crear_job_a_placa(0, path_job_inicial);
     encolar_new(job_inicial);
 
+    pthread_join(hilo_corto_plazo, NULL); // espera a que el hilo termine, para que no se cierre la consola
     // Liberar todo
     log_destroy(logger);
     config_destroy(config);
@@ -125,7 +125,7 @@ void incializar_mutex()
     pthread_mutex_init(&mutex_lista_core, NULL);
     pthread_mutex_init(&mutex_cola_new, NULL);
     pthread_mutex_init(&mutex_lista_jobs, NULL);
-}  
+}
 
 void incializar_semaforos()
 {
@@ -146,4 +146,3 @@ void incializar_listas()
 
     lista_jobs = list_create();
 }
-

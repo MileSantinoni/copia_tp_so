@@ -56,6 +56,7 @@ void *iniciar_conexion_como_servidor(void *arg)
         pthread_detach(thread);
     }
 }
+
 bool comparar_por_socket(void *ptr)
 {
 

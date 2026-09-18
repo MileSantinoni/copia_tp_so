@@ -103,15 +103,17 @@ t_list *recibir_paquete(int socket_cliente){
 	return valores;
 }
 
+// Se usaria dentro del case de MENSAJE
 void recibir_mensaje(int socket_cliente){
-	int cod_op = recibir_operacion(socket_cliente);
+
+	/*int cod_op = recibir_operacion(socket_cliente);
 
 	if (cod_op != MENSAJE)
 	{
 		log_error(logger, "No se esta recibiendo la operación MENASAJE");
 		log_info(logger, "El cod op recibido fue: %i", cod_op);
 		return;
-	}
+	}*/
 
 	int size;
 	char *buffer = recibir_buffer(&size, socket_cliente);

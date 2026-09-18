@@ -63,7 +63,7 @@ void finalizar_job_en_placa(uint32_t jid);
 // void terminar_placa(void); --> la pase de forma general al util  porque nos sirve a todos los modulos
 
 //Prototipos CHECK 2
-void crear_job_en_placa(uint32_t jid, char* nombre_archivo);
+char* crear_job_en_placa(uint32_t jid, char* nombre_archivo); // Devueelve mensaje de ERROR o de OK
 char* obtener_instruccion(uint32_t jid, uint32_t pc);
 
 #endif 

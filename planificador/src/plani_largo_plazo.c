@@ -31,6 +31,8 @@ t_job *crear_job(uint32_t jid){
 
 // le avisa a la Placa que existe este job, para que pueda leer las instrucciones y responder despues a los FETCH_INSTRUCCION del Core
 void enviar_crear_job_a_placa(uint32_t jid, char *nombre_archivo){
+
+    log_info(logger,"Enviando CREAR_JOB a Placa - JID: %u - Archivo: %s",jid,nombre_archivo);
     t_paquete *paquete = crear_paquete(CREAR_JOB);
 
     agregar_a_paquete(paquete, &jid, sizeof(uint32_t));

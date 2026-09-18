@@ -148,9 +148,9 @@ void *atender_cliente(void *arg)
             uint32_t jid = *(uint32_t*)list_get(lista, 0);
             char* nombre_archivo = (char*)list_get(lista,1);
 
-            crear_job_en_placa(jid, nombre_archivo);
+            char* mensaje = crear_job_en_placa(jid, nombre_archivo);
 
-            enviar_mensaje("JOB_CREADO", socket_cliente);
+            enviar_mensaje(mensaje, socket_cliente);
 
             list_destroy_and_destroy_elements(lista, free);
             break;
@@ -257,9 +257,11 @@ void finalizar_job_en_placa(uint32_t jid)
     log_info(logger, "## JID: %d - Job finalizado, estructuras liberadas en la Placa", jid);
 }
 
-void crear_job_en_placa(uint32_t jid, char* nombre_archivo)
+char* crear_job_en_placa(uint32_t jid, char* nombre_archivo)
 {
     char* path_completo = string_from_format("%s%s", config_valores.path_instrucciones, nombre_archivo);
+    
+    log_info(logger, "Intentando abrir archivo: %s", path_completo);
     
     FILE* archivo = fopen(path_completo, "r");
     free(path_completo);
@@ -267,7 +269,7 @@ void crear_job_en_placa(uint32_t jid, char* nombre_archivo)
     if(archivo == NULL)
     {
         log_error(logger, "## JID: %d - Error al abrir archivo de instrucciones: %s", jid, nombre_archivo);
-        return;
+        return "ERROR EN CREAR JOB";
     } 
 
     t_job_instrucciones* job = malloc(sizeof(t_job_instrucciones));
@@ -298,5 +300,5 @@ void crear_job_en_placa(uint32_t jid, char* nombre_archivo)
     pthread_mutex_unlock(&mutex_jobs);
 
     log_info(logger, "## JID: %d - Job Creado", jid);
-    
+    return "CREAR JOB OK";
 }
