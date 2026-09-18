@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 #include <commons/log.h>
 #include <commons/config.h>
@@ -18,6 +19,48 @@ t_log *logger = NULL;
 t_config *config = NULL;
 
 int hay_interrupcion = 0; // 0 false || 1 true
+static int ejecutar_instruccion(char * instruction_str , int socket_dispatch, uint32_t jid){
+    char ** partes = string_split (instruction_str, " "); // toma la cadena que vino de placa y la corta por cada espacio, arma un array con cada palabra suelta
+    char * comando = partes[0]; // es la posicion a ejecutar, siempre apunta  a la primera palabra de la instruccion
+    int continuar_ejecuccion = 1; // avisa al bucle while si tiene que seguir pidiendo instrucciones o si debe frenar porque la instruccion procesada fue un exit
+
+    // log obligatorio de ejecuccion
+    log_info (logger, "## Ejecutando: %s - PID: %d", instruction_str, jid);
+    if(strcmp( comando, "SET") == 0){
+        uint32_t valor = (uint32_t) atoi(partes[2]); // atoi lo que hace es convertir de texto a numero (ascii a numero entero)
+        setear_valor_registro(partes[1], valor); // setea el valor del registro en caso de que coincidan la precondicion
+    }
+    else if(strcmp(comando, "SUM")==0){
+        // sum reg destino / reg origen
+        uint32_t valor1 = obtener_valor_registro (partes[1]);
+        uint32_t valor2 = obtener_valor_registro (partes[2]);
+        setear_valor_registro(partes[1], valor1 + valor2);
+    }
+    else if (strcmp( comando, "SUB") == 0){
+        // resta del reg destino / reg origen
+        uint32_t valor1 = obtener_valor_registro (partes[1]);
+        uint32_t valor2 = obtener_valor_registro (partes[2]);
+        setear_valor_registro(partes[1], valor1 - valor2);
+    }
+    else if(strcmp(comando, "JNZ") == 0){
+        // Jnz registro / instruccion
+        uint32_t valor = obtener_valor_registro(partes[1]);
+        if(valor!= 0){
+            registros_cpu.PC = (uint32_t) atoi(partes[2]);
+        }
+    }
+    else if(strcmp(comando, "EXIT") == 0){
+        log_info(logger, "## Proceso JID: %d finalizó por instrucción EXIT.", jid);
+        enviar_contexto(socket_dispatch, FINALIZAR_JOB, jid, &registros_cpu);
+        continuar_ejecuccion = 0; // flag de false 
+    }
+    else{
+        log_warning(logger, "Instrucción desconocida: %s", comando);
+    }
+    string_array_destroy(partes);
+    return continuar_ejecuccion;
+}
+
 
 void ciclo_de_instruccion(int socket_dispatch, int socket_placa, uint32_t jid)
 {                       // denominado fetch, se encarga de captar la proxima instruccion
@@ -49,10 +92,16 @@ void ciclo_de_instruccion(int socket_dispatch, int socket_placa, uint32_t jid)
 
         registros_cpu.PC++; // incremento el pc para que apunte a la siguiente instruccion
 
+        // fase decode and execute
+        ejecutando = ejecutar_instruccion(instruccion, socket_dispatch, jid);
         free(instruccion);
 
+        // retardo simulado entre  instrucciones (representado en milisegundos)
+        int retardo = config_get_int_value(config, "RETARDO_INSTRUCCION");
+        usleep(retardo *1000);
+
         // chequeamos interrupt
-        if (hay_interrupcion)
+        if (ejecutando && hay_interrupcion)
         {
             log_info(logger, "## Interrupción detectada. Desalojando proceso JID: %d...", jid);
             hay_interrupcion = 0;
@@ -64,79 +113,9 @@ void ciclo_de_instruccion(int socket_dispatch, int socket_placa, uint32_t jid)
     }
 }
 
-void setear_valor_registro(char *nombre_registro, uint32_t valor)
-{
-    if (strcmp(nombre_registro, "PC") == 0)
-    {
-        registros_cpu.PC = valor;
-        return;
-    } // extraemos el valor y lo guardamos en el registro que segun matcheen
-    if (strcmp(nombre_registro, "AX") == 0)
-    {
-        registros_cpu.AX = valor;
-        return;
-    }
-    if (strcmp(nombre_registro, "BX") == 0)
-    {
-        registros_cpu.BX = valor;
-        return;
-    }
-    if (strcmp(nombre_registro, "CX") == 0)
-    {
-        registros_cpu.CX = valor;
-        return;
-    }
-    if (strcmp(nombre_registro, "DX") == 0)
-    {
-        registros_cpu.DX = valor;
-        return;
-    }
-    if (strcmp(nombre_registro, "P0") == 0)
-    {
-        registros_cpu.P0 = valor;
-        return;
-    }
-    if (strcmp(nombre_registro, "P1") == 0)
-    {
-        registros_cpu.P1 = valor;
-        return;
-    }
-    if (strcmp(nombre_registro, "P2") == 0)
-    {
-        registros_cpu.P2 = valor;
-        return;
-    }
-    if (strcmp(nombre_registro, "P3") == 0)
-    {
-        registros_cpu.P3 = valor;
-        return;
-    }
-    if (strcmp(nombre_registro, "P4") == 0)
-    {
-        registros_cpu.P4 = valor;
-        return;
-    }
-    if (strcmp(nombre_registro, "P5") == 0)
-    {
-        registros_cpu.P5 = valor;
-        return;
-    }
-    if (strcmp(nombre_registro, "E1") == 0)
-    {
-        registros_cpu.E1 = valor;
-        return;
-    }
-    if (strcmp(nombre_registro, "E2") == 0)
-    {
-        registros_cpu.E2 = valor;
-        return;
-    }
-    if (strcmp(nombre_registro, "E3") == 0)
-    {
-        registros_cpu.E3 = valor;
-        return;
-    }
-}
+
+
+
 
 int main(int argc, char *argv[])
 {

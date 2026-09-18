@@ -80,40 +80,6 @@ void inicializar_placa(char *path_config)
     }
 }
 
-/*int inicia_servidor_placa(char* puerto)
-{
-    struct addrinfo hints, *server_info;
-
-    memset(&hints, 0, sizeof(hints));
-    hints.ai_family = AF_UNSPEC;
-    hints.ai_socktype = SOCK_STREAM;
-    hints.ai_flags = AI_PASSIVE; // Para usar la propia IP
-
-    getaddrinfo(NULL, puerto, &hints, &server_info);
-
-    int socket_servidor = socket(server_info->ai_family, server_info->ai_socktype, server_info->ai_protocol);
-
-    // Evita el error "Address already in use" al reiniciar rápido
-    int yes = 1;
-    setsockopt(socket_servidor, SOL_SOCKET, SO_REUSEADDR, &yes, sizeof(yes));
-
-    if (bind(socket_servidor, server_info->ai_addr, server_info->ai_addrlen) != 0)
-    {
-        log_error(logger, "## Error al bindear el socket en el puerto %s", puerto);
-        exit(EXIT_FAILURE);
-    }
-
-    freeaddrinfo(server_info);
-
-    if (listen(socket_servidor, SOMAXCONN) != 0)
-    {
-        log_error(logger, "## Error al escuchar en el socket");
-        exit(EXIT_FAILURE);
-    }
-
-    return socket_servidor;
-}*/
-
 void esperar_conexiones(int socket_servidor)
 {
     while (1)
@@ -143,14 +109,18 @@ void *atender_cliente(void *arg)
     switch (modulo)
     {
     case CORE:
+    {
         socket_core = socket_cliente;
         int id_core = recibir_core_id(socket_core);
         log_info(logger, "ID CORE: %i", id_core);
         break;
-    case PLANIFICADOR:
+    }
 
+    case PLANIFICADOR:
+    {
         socket_planificador = socket_cliente;
         break;
+    }
 
     default:
         log_warning(logger, "## Módulo desconocido: %s", modulo_s);
@@ -171,15 +141,49 @@ void *atender_cliente(void *arg)
         }
         switch (codigo_operacion)
         {
-            /*case HANDSHAKE_CORE:
-                log_info(logger, "## Handshake recibido: Módulo CORE");
-                enviar_mensaje("HANDSHAKE_OK", socket_cliente);
-                break;
+        case CREAR_JOB:
+        {
+            t_list* lista = recibir_paquete(socket_cliente);
 
-            case HANDSHAKE_PLANIFICADOR:
-                log_info(logger, "## Handshake recibido: Módulo PLANIFICADOR");
-                enviar_mensaje("HANDSHAKE_OK", socket_cliente);
-                break;*/
+            uint32_t jid = *(uint32_t*)list_get(lista, 0);
+            char* nombre_archivo = (char*)list_get(lista,1);
+
+            crear_job_en_placa(jid, nombre_archivo);
+
+            enviar_mensaje("JOB_CREADO", socket_cliente);
+
+            list_destroy_and_destroy_elements(lista, free);
+            break;
+        }
+
+        case FETCH_INSTRUCCION:
+        {
+            t_list* lista = recibir_paquete(socket_cliente);
+
+            uint32_t jid = *(uint32_t*)list_get(lista, 0);
+            uint32_t pc = *(uint32_t*)list_get(lista, 1);
+
+            char* instruccion = obtener_instruccion(jid, pc);
+            enviar_mensaje(instruccion != NULL ? instruccion : "ERROR", socket_cliente);
+            if(instruccion != NULL) free(instruccion);
+
+            list_destroy_and_destroy_elements(lista, free);
+            break;
+        }
+
+        case FINALIZAR_JOB:
+        {
+            t_list* lista = recibir_paquete(socket_cliente);
+
+            uint32_t jid = *(uint32_t*)list_get(lista, 0);
+
+            finalizar_job_en_placa(jid);
+
+            enviar_mensaje("JOB_FINALIZADO", socket_cliente);
+
+            list_destroy_and_destroy_elements(lista, free);
+            break;
+        }
 
         case MENSAJE:
         {
@@ -197,17 +201,6 @@ void *atender_cliente(void *arg)
             break;
         }
 
-            /*case PAQUETE_PRUEBA:
-            {
-                log_info(logger, "## Paquete con datos recibido");
-
-                t_paquete* respuesta = crear_paquete(PAQUETE_PRUEBA);
-                agregar_string_a_paquete(respuesta, "ack desde la placa");
-                enviar_paquete(respuesta, socket_cliente);
-                eliminar_paquete(respuesta);
-                break;
-            }*/
-
         default:
             log_warning(logger, "## Código de operación desconocido: %d", codigo_operacion);
             break;
@@ -218,7 +211,53 @@ void *atender_cliente(void *arg)
     return NULL;
 }
 
-void crear_job_en_placa(int jid, char* nombre_archivo)
+char* obtener_instruccion(uint32_t jid, uint32_t pc)
+{
+    pthread_mutex_lock(&mutex_jobs);
+    char* clave = string_itoa(jid);
+    t_job_instrucciones* job = dictionary_get(diccionario_jobs, clave);
+    free(clave);
+
+    char* instruccion_copia = NULL;
+    if (job != NULL && pc < job->cantidad_instrucciones)
+        instruccion_copia = strdup(job->instrucciones[pc]);
+
+    pthread_mutex_unlock(&mutex_jobs);
+
+    if (instruccion_copia == NULL)
+        log_error(logger, "## JID: %d - PC inválido o Job inexistente: %u", jid, pc);
+    else
+        log_info(logger, "## JID: %d - Obtener instrucción: %u - Instrucción: %s", jid, pc, instruccion_copia);
+
+    return instruccion_copia; //es responsabilidad de quien la llama hacer free
+}
+
+void finalizar_job_en_placa(uint32_t jid)
+{
+    pthread_mutex_lock(&mutex_jobs);
+
+    char* clave = string_itoa(jid);
+    t_job_instrucciones* job = dictionary_remove(diccionario_jobs, clave);
+    free(clave);
+
+    pthread_mutex_unlock(&mutex_jobs);
+
+    if (job == NULL)
+    {
+        log_warning(logger, "## JID: %d - Finalización solicitada pero el Job no existe en la Placa", jid);
+        return;
+    }
+
+    for (int i = 0; i < job->cantidad_instrucciones; i++)
+        free(job->instrucciones[i]);
+
+    free(job->instrucciones);
+    free(job);
+
+    log_info(logger, "## JID: %d - Job finalizado, estructuras liberadas en la Placa", jid);
+}
+
+void crear_job_en_placa(uint32_t jid, char* nombre_archivo)
 {
     char* path_completo = string_from_format("%s%s", config_valores.path_instrucciones, nombre_archivo);
     
