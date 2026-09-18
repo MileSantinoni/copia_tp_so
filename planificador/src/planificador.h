@@ -40,10 +40,19 @@ void incializar_listas();
 // LISTA DE TODOS LOS JOBS
 
 extern t_list *lista_jobs;
+extern pthread_mutex_t mutex_lista_jobs;
+
+// LISTA CORES
+
+extern t_list *lista_cores;
+extern pthread_mutex_t mutex_lista_core;
+extern sem_t sem_cores;
 
 // COLAS DE ESTADO
 
 extern t_list *cola_new;
+extern pthread_mutex_t mutex_cola_new;
+extern sem_t sem_cola_new;
 
 extern t_list *cola_ready;
 extern pthread_mutex_t mutex_cola_ready;
@@ -53,16 +62,24 @@ extern t_list *cola_block; // DEBERIAN SER DISTINTAS COLAS DE BLOQUEO SEGUN EL M
 extern pthread_mutex_t mutex_cola_block; 
 extern sem_t sem_cola_block;
 
-// LISTA CORES
 
-extern t_list *lista_cores;
-extern pthread_mutex_t mutex_lista_core;
-extern sem_t sem_cores;
+
+// MULTIPROGRAMACIÓN
+
+extern sem_t sem_cupo_multiprogramacion;
 
 // FUNCIONES GENERALES
 
 t_core *obtener_core_libre();
 t_job *buscar_por_jid(t_list *lista_job, u_int32_t jid);
+char *estado_a_string(t_estado estado);
+void log_cambio_estado(uint32_t jid, char *anterior, char *actual);
+t_core *buscar_core_por_socket(t_list *lista_core, int socket);
+t_job *buscar_job_por_jid(t_list *lista_job, u_int32_t jid);
+void finalizar_job(t_job *job, char *motivo);
+void pasar_a_ready(t_job *job);
+void encolar_new(t_job *job);
+
 
 
 #endif

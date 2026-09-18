@@ -4,7 +4,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 
-void iniciar_conexion_como_servidor();
+void* iniciar_conexion_como_servidor(void *arg);
 void *atender_core(void *arg);
 
 bool comparar_por_socket(void* ptr);

@@ -23,10 +23,19 @@ t_config *config;
 // LISTA DE TODOS LOS JOBS
 
 t_list *lista_jobs;
+pthread_mutex_t mutex_lista_jobs;
+
+// LISTA CORES
+
+t_list *lista_cores;
+pthread_mutex_t mutex_lista_core;
+sem_t sem_cores;
 
 // COLAS DE ESTADO
 
 t_list *cola_new;
+pthread_mutex_t mutex_cola_new;
+sem_t sem_cola_new;
 
 t_list *cola_ready;
 pthread_mutex_t mutex_cola_ready;
@@ -36,17 +45,10 @@ t_list *cola_block; // DEBERIAN SER DISTINTAS COLAS DE BLOQUEO SEGUN EL MOTIVO
 pthread_mutex_t mutex_cola_block;
 sem_t sem_cola_block;
 
-pthread_mutex_t mutex_cola_new;
-sem_t sem_cola_new;
-
 sem_t sem_cupo_multiprogramacion;
 int grado_max_multiprogramacion;
 
-// LISTA CORES
 
-t_list *lista_cores;
-pthread_mutex_t mutex_lista_core;
-sem_t sem_cores;
 
 int main(int argc, char *argv[])
 {
@@ -82,33 +84,23 @@ int main(int argc, char *argv[])
 
     // Parte servidor
 
-    pthread_t hilo_servidor; 
+    pthread_t hilo_servidor;
     pthread_create(&hilo_servidor, NULL, iniciar_conexion_como_servidor, NULL);
     pthread_detach(hilo_servidor);
 
-    
     // PARTE CENTRAL
 
     // Obtener el nombre del Job inicial. argv[2] = nombre del job
     char *path_job_inicial = argv[2];
 
-   incializar_mutex();
-
+    incializar_mutex();
     incializar_semaforos();
-
     incializar_listas();
 
     // HILOS DE PLANIFICADORES
-    pthread_t hilo_corto_plazo; // Creo el hilo para que siempre este esperando algun job para ejecutar pero sin frenar todo el resto
+    pthread_t hilo_corto_plazo;
     pthread_create(&hilo_corto_plazo, NULL, planificador_corto_plazo, NULL);
     pthread_detach(hilo_corto_plazo);
-
-    // ESTO LO PUSE DE GUIA
-    // Crearlo e inicializarlo --> Pasa a new
-    // Le pasamos las instrucciones a placa. Esperrramos su respuesta de confirmacion
-    // Plani largo plazo --> se fija el grado de multiprogramacion y se fija si loadmite
-    // Si lo puede admitir --> Pasa a ready (actualizo lista y semaforo)
-    // Sino deberia esperar a que baje el grado de multiprogramacion. Podriamos usar un semaforo que cuando finaliza un proograma se ponde en 1 (no es tan neceesario ahora pero es bueno tenerlo en cuenta)
 
     pthread_t hilo_largo_plazo;
     pthread_create(&hilo_largo_plazo, NULL, planificador_largo_plazo, NULL);
@@ -118,7 +110,6 @@ int main(int argc, char *argv[])
     t_job *job_inicial = crear_job(0);
     enviar_crear_job_a_placa(0, path_job_inicial);
     encolar_new(job_inicial);
-
 
     // Liberar todo
     log_destroy(logger);
@@ -133,7 +124,8 @@ void incializar_mutex()
     pthread_mutex_init(&mutex_cola_ready, NULL);
     pthread_mutex_init(&mutex_lista_core, NULL);
     pthread_mutex_init(&mutex_cola_new, NULL);
-}
+    pthread_mutex_init(&mutex_lista_jobs, NULL);
+}  
 
 void incializar_semaforos()
 {
@@ -141,8 +133,7 @@ void incializar_semaforos()
     sem_init(&sem_cores, 0, 0);
     sem_init(&sem_cola_new, 0, 0);
     grado_max_multiprogramacion = config_get_int_value(config, "GRADO_MULTIPROGRAMACION");
-    sem_init(&sem_cupo_multiprogramacion, 0, grado_max_multiprogramacion); //inicializo el semáforo de cupo con el valor del grado de multiprogramación, no en 0 (es un semáforo contador, no uno de señalización)
-    
+    sem_init(&sem_cupo_multiprogramacion, 0, grado_max_multiprogramacion); // inicializo el semáforo de cupo con el valor del grado de multiprogramación, no en 0 (es un semáforo contador, no uno de señalización)
 }
 
 void incializar_listas()
@@ -156,34 +147,3 @@ void incializar_listas()
     lista_jobs = list_create();
 }
 
-t_core *obtener_core_libre()
-{
-
-    for (int i = 0; i < list_size(lista_cores); i++)
-    {
-
-        t_core *core_actual = (t_core *)list_get(lista_cores, i);
-        if (core_actual->libre)
-        {
-
-            return core_actual;
-        }
-    }
-
-    return NULL;
-}
-
-t_job *buscar_por_jid(t_list *lista_job, u_int32_t jid)
-{
-
-    for (int i = 0; i < list_size(lista_job); i++)
-    {
-        t_job *job_actual = (t_job *)list_get(lista_job, i);
-
-        if (job_actual->jid == jid)
-        {
-            return job_actual;
-        }
-    }
-    return NULL;
-}

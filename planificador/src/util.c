@@ -1,0 +1,138 @@
+#include "util.h"
+#include <pthread.h>
+
+// BUSQUEDA DE LISTAS
+
+t_core *obtener_core_libre()
+{
+
+    for (int i = 0; i < list_size(lista_cores); i++)
+    {
+
+        t_core *core_actual = (t_core *)list_get(lista_cores, i);
+        if (core_actual->libre)
+        {
+
+            return core_actual;
+        }
+    }
+
+    return NULL;
+}
+
+t_job *buscar_job_por_jid(t_list *lista_job, u_int32_t jid)
+{
+
+    for (int i = 0; i < list_size(lista_job); i++)
+    {
+        t_job *job_actual = (t_job *)list_get(lista_job, i);
+
+        if (job_actual->jid == jid)
+        {
+            return job_actual;
+        }
+    }
+    return NULL;
+}
+
+t_core *buscar_core_por_socket(t_list *lista_core, int socket)
+{
+
+    for (int i = 0; i < list_size(lista_core); i++)
+    {
+        t_core *core_actual = (t_core *)list_get(lista_core, i);
+
+        if (core_actual->socket == socket)
+        {
+            return core_actual;
+        }
+    }
+    return NULL;
+}
+
+
+// Para cuando un job deja de usar el CORE
+
+void liberar_socket_core(int socket_core)
+{
+
+    pthread_mutex_lock(&mutex_lista_core);
+    t_core *core_actual = buscar_core_por_socket(lista_cores, socket_core);
+    core_actual->libre = true;
+    pthread_mutex_unlock(&mutex_lista_core);
+
+    sem_post(&sem_cores);
+}
+
+// MANEJO DE ESTADOS
+
+// log obligatorio de cambio de estado
+char *estado_a_string(t_estado estado)
+{
+    switch (estado)
+    {
+    case NEW:
+        return "NEW";
+    case READY:
+        return "READY";
+    case EXEC:
+        return "EXEC";
+    case BLOCK:
+        return "BLOCK";
+    case EXIT:
+        return "EXIT";
+    default:
+        return "DESCONOCIDO";
+    }
+}
+
+// log de cambio de estado
+// (lo dejo aca como funcion generica por si la usan tambien desde plani_corto_plazo.c)
+void log_cambio_estado(uint32_t jid, char *anterior, char *actual)
+{
+    log_info(logger, "## (%d) Pasa del estado %s al estado %s", jid, anterior, actual);
+}
+
+// CAMBIO DE ESTADOS
+
+// encola el job en NEW y avisa al hilo de largo plazo que hay algo para revisar
+void encolar_new(t_job *job)
+{
+    pthread_mutex_lock(&mutex_cola_new);
+    list_add(cola_new, job);
+    pthread_mutex_unlock(&mutex_cola_new);
+
+    sem_post(&sem_cola_new);
+}
+
+// pasa un job a READY: loguea el cambio, lo mete en cola_ready y avisa a plani_corto_plazo (que espera sem_cola_ready)
+void pasar_a_ready(t_job *job)
+{
+    log_cambio_estado(job->jid, estado_a_string(job->estado), "READY");
+    job->estado = READY;
+
+    pthread_mutex_lock(&mutex_cola_ready);
+    list_add(cola_ready, job);
+    pthread_mutex_unlock(&mutex_cola_ready);
+
+    sem_post(&sem_cola_ready);
+}
+
+void pasar_a_exec(t_job *job)
+{
+    char *estado_anterior = estado_a_string(job->estado);
+    log_cambio_estado(job->jid, estado_anterior, "EXEC");
+    job->estado = EXEC;
+}
+
+// pasa un job a EXIT y libera un cupo de multiprogramacion
+// (esto lo tiene que llamar quien procese el FINALIZAR_JOB que manda el Core, ver nota de coordinacion abajo)
+void finalizar_job(t_job *job, char *motivo)
+{
+    log_cambio_estado(job->jid, estado_a_string(job->estado), "EXIT");
+    job->estado = EXIT;
+
+    log_info(logger, "## (%d) finalizó su ejecución con motivo de %s. Estadísticas: %s", job->jid, motivo, "");
+
+    sem_post(&sem_cupo_multiprogramacion); // libero un lugar para que entre otro job de NEW
+}

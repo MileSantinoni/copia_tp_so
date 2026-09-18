@@ -1,5 +1,6 @@
 #include "servidor.h"
 #include "planificador.h"
+#include "util.h"
 
 #include <stdlib.h>
 #include <pthread.h>
@@ -15,7 +16,7 @@
 
 int socket_core;
 
-void iniciar_conexion_como_servidor()
+void *iniciar_conexion_como_servidor(void *arg)
 {
 
     // Obtenemos las configuraciones necesarias del archivo connfig
@@ -106,51 +107,72 @@ void *atender_core(void *arg)
         pthread_mutex_unlock(&mutex_lista_core);
 
         free(core_a_eliminar);
-
         sem_wait(&sem_cores);
-
+        liberar_conexion(socket_core);
         return NULL;
     }
-
-    switch (codigo_operacion)
+    while (1)
     {
-    case MENSAJE:
-    {
-        int size;
-        char *buffer = recibir_buffer(&size, socket_core);
-        log_info(logger, "Me llego el mensaje: %s", buffer);
-        free(buffer);
 
-        // Confirmación simple de vuelta al cliente
-        enviar_mensaje("CONFIRMACION_RECIBIDA", socket_core);
-        break;
-    }
-    case DEVOLVER_CONTEXTO:
-    {
-        u_int32_t jid;
-        t_registros registros;
-        recibir_contexto(socket_core, &jid, &registros);
-
-        t_job *job_encontrado = buscar_por_jid(lista_jobs, jid);
-
-        if (job_encontrado == NULL)
+        switch (codigo_operacion)
         {
-            log_error(logger, "No se encontro un JOB par jid :u%u", jid);
+        case MENSAJE:
+        {
+            int size;
+            char *buffer = recibir_buffer(&size, socket_core);
+            log_info(logger, "Me llego el mensaje: %s", buffer);
+            free(buffer);
+
+            // Confirmación simple de vuelta al cliente
+            enviar_mensaje("CONFIRMACION_RECIBIDA", socket_core);
             break;
         }
+        case DEVOLVER_CONTEXTO:
+        {
+            u_int32_t jid;
+            t_registros registros;
+            recibir_contexto(socket_core, &jid, &registros);
 
-        job_encontrado->contexto=&registros;
+            // Tengo que recibir el motivo todavia pero no se como me lo mandan
+            t_motivo_desalojo motivo;
+            char *motivo_s = motivo_de_desalojo_a_string(motivo);
 
+            pthread_mutex_lock(&mutex_lista_jobs);
+            t_job *job_encontrado = buscar_job_por_jid(lista_jobs, jid);
 
-        // Liberar el core
-        // M
+            if (job_encontrado == NULL)
+            {
+                log_error(logger, "No se encontro un JOB par jid :u%u", jid);
+                pthread_mutex_unlock(&mutex_lista_jobs);
+                break;
+            }
+
+            memcpy(job_encontrado->contexto, &registros, sizeof(t_registros));
+            pthread_mutex_unlock(&mutex_lista_jobs);
+
+            if (strcmp(motivo_s, "FIN_QUANTUM") == 0)
+            {
+
+                pasar_a_ready(job_encontrado);
+            }
+
+            if (strcmp(motivo_s, "FINALIZAR_JOB") == 0)
+            {
+
+                // Si el moptivo para devolver contexto es finalizar job, tengo que recibir el motivo por que el se finalizo
+                char *motivo_finalizacion; // noc como me lo van a mandar
+                finalizar_job(job_encontrado, motivo_finalizacion);
+            }
+
+            // Liberamos el CORE correspondiente
+            liberar_socket_core(socket_core);
+        }
+
+        default:
+            log_warning(logger, "## Código de operación desconocido: %d", codigo_operacion);
+            break;
+        }
     }
 
-    default:
-        log_warning(logger, "## Código de operación desconocido: %d", codigo_operacion);
-        break;
-    }
-
-    liberar_conexion(socket_core);
     return NULL;
 }

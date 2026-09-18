@@ -1,5 +1,6 @@
 #include "plani_corto_plazo.h"
 #include "planificador.h"
+#include "util.h"
 
 #include <semaphore.h>
 #include <pthread.h>
@@ -43,8 +44,8 @@ void despachar_proceso()
         log_error(logger, "Algoritmo de planificación inválido");
     }
 
-    job_elegido->estado = EXEC;
-
+    pasar_a_exec(job_elegido);
+    
     pthread_mutex_lock(&mutex_lista_core);
     t_core *core_elegido = obtener_core_libre();
    
@@ -71,11 +72,11 @@ void *controlar_quantum(void* arg)
 {
     t_args_quantum* datos = (t_args_quantum*) arg;
 
-    // Espero el quentum indicado. Multiplico poor 100 porque usleep trabaja con microsegundo
+    // Espero el quentum indicado. Multiplico poor 1000 porque usleep trabaja con microsegundo
     usleep(datos->quantum*1000);
 
     // Verifico que el job que esta ejecuntando el core correspondiente sea el mismo y no haya cambiado 
-    // Puede ser que el tiempo de ejecucion era menor  al quentuum establecido 
+    // Puede ser que el tiempo de ejecucion era menor al quantuum establecido 
 
     if((datos->core->jid_actual != datos->job->jid) || datos->core->libre){
 
@@ -85,8 +86,12 @@ void *controlar_quantum(void* arg)
 
     // Desalojo el proceso del core 
 
-    t_paquete * paquete = crear_paquete(DESALOJAR_JOB);
+    log_info(logger, "## %u - Desalojado por fin de quantum",datos->job->jid);
+
+    t_motivo_desalojo motivo = FIN_QUANTUM;
+    t_paquete * paquete = crear_paquete(INTERRUPCION);
     agregar_a_paquete(paquete,&datos->job->jid,sizeof(datos->job->jid));
+    agregar_a_paquete(paquete,&motivo,sizeof(motivo));
     enviar_paquete(paquete,datos->core->socket);
     eliminar_paquete(paquete);
 

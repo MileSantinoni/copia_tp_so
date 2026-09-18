@@ -19,4 +19,6 @@ int  recibir_core_id(int socket);
 
 void terminar_modulo(void);
 
+char* motivo_de_desalojo_a_string(t_motivo_desalojo motivo);
+
 #endif

@@ -11,14 +11,28 @@ typedef enum
     ENVIO_ID, 
 
     // Operaciones check N2
+
+    // PLANI <--> PLACA
     CREAR_JOB, //planificador crea job y se lo manda a la placa
+    
+    // PLANI <--> CORE
+    DEVOLVER_CONTEXTO,
+    DESPACHAR_JOB, // planificador despacha el job al core
+    // DESALOJAR_JOB,  // Fin de quantum / interrupcion 
+    INTERRUPCION, // Planificador le envia al core
+    FINALIZAR_JOB, // core le envia al planificador y el planificador a placa+
+
+    // CORE <--> PLACA
     FETCH_INSTRUCCION, // Core le pide la instruccion a la placa
     RESPUESTA_INSTRUCCION, // placa responde al core
-    DESPACHAR_JOB, // planificador despacha el job al core
-    DESALOJAR_JOB,  // Fin de quantum / interrupcion 
-    INTERRUPCION, // Planificador le envia al core
-    FINALIZAR_JOB, // core le envia al planificador y el planificador a placa
+  
 } op_code;
+
+typedef enum
+{
+    FIN_QUANTUM,
+
+} t_motivo_desalojo;
 
 
 typedef enum
