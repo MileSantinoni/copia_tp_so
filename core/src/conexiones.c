@@ -1,3 +1,7 @@
+#include <stdio.h>
+#include <stdlib.h>
+#include <pthread.h>
+
 #include "conexiones.h"
 #include "core.h"
 
@@ -6,54 +10,16 @@
 #include <utils/protocolo.h>
 #include <utils/util.h>
 
-#include <sys/select.h>
-#include <errno.h>
-#include <pthread.h>
+extern t_log * logger;
+extern int hay_interrupcion;
+int socket_dispatch = -1;
+int socket_interrupt = -1; // el valor -1 de los sockets me indican que el socket aun no fue creado o que ya se cerro
+int socket_placa = -1;
+pthread_t hilo_escucha;
 
-int socket_placa;
-int socket_planificador;
+void enviar_id(int socket, int id){
 
-int conectar_con_planificador(char *ip, char *puerto, int id_core)
-{
-    log_info(logger, "Intentando conectar con Planificador (%s:%s)...", ip, puerto);
-
-    socket_planificador = crear_conexion(ip, puerto);
-    if (socket_planificador == -1)
-    {
-        log_error(logger, "No se pudo conectar con el Planificador en %s:%s", ip, puerto);
-        return -1;
-    }
-
-    enviar_handshake(socket_planificador, CORE);
-    enviar_id(socket_planificador, id_core);
-    log_info(logger, "## Conectado a Planificador exitosamente");
-
-    return socket_planificador;
-}
-
-int conectar_con_placa(char *ip, char *puerto, int id_core)
-{
-    log_info(logger, "Intentando conectar con Placa (%s:%s)...", ip, puerto);
-
-    socket_placa = crear_conexion(ip, puerto);
-
-    if (socket_placa == -1)
-    {
-        log_error(logger, "No se pudo conectar con la Placa en %s:%s", ip, puerto);
-        return -1;
-    }
-
-    enviar_handshake(socket_placa, CORE);
-    enviar_id(socket_placa, id_core);
-    log_info(logger, "## Conectado a Placa exitosamente");
-
-    return socket_placa;
-}
-
-void enviar_id(int socket, int id)
-{
-
-    t_paquete *paquete = crear_paquete(ENVIO_ID);
+    t_paquete* paquete = crear_paquete(ENVIO_ID);
 
     agregar_a_paquete(paquete, &id, sizeof(int));
     enviar_paquete(paquete, socket);
@@ -62,13 +28,70 @@ void enviar_id(int socket, int id)
     log_info(logger, "ID CORE <%i> enviado a socket: %i", id, socket);
 }
 
-pthread_t hilo_escucha;
+int conectar_con_planificador(char* ip, char* puerto, int id_core) {
+    log_info(logger, "Intentando conectar con Planificador (%s:%s)...", ip, puerto);
+    
+    int sock = crear_conexion(ip, puerto);
+    if (sock == -1) {
+        log_error(logger, "No se pudo conectar con el Planificador en %s:%s", ip, puerto);
+        return -1;
+    }
+
+    enviar_handshake(sock, CORE);
+    enviar_id(sock,id_core);
+    log_info(logger, "## Conectado a Planificador exitosamente");
+    
+    return sock;
+}
+
+int conectar_con_placa(char* ip, char* puerto, int id_core) {
+    log_info(logger, "Intentando conectar con Placa (%s:%s)...", ip, puerto);
+    
+    int sock = crear_conexion(ip, puerto);
+    
+    if (sock == -1) {
+        log_error(logger, "No se pudo conectar con la Placa en %s:%s", ip, puerto);
+        return -1;
+    }
+
+    enviar_handshake(sock, CORE);
+    enviar_id(sock, id_core);
+    log_info(logger, "## Conectado a Placa exitosamente");
+    
+    return sock;
+}
+
+void * escuchar_servidores(void *arg){
+    while(1){
+        int cod_op = recibir_operacion (socket_interrupt);
+        if (cod_op == -1){
+            log_warning(logger, "Canal de interrupción desconectado");
+            break;
+        }
+        switch(cod_op){
+            case INTERRUPCION : {
+                int size = 0;
+                void * buffer = recibir_buffer(&size, socket_interrupt);
+                free(buffer);
+                
+                log_info(logger, "## Interrupción recibida");
+                hay_interrupcion = 1;
+                break;
+            }
+            default:
+            log_warning(logger, "Operación desconocida en canal interrupt: %d", cod_op);
+            break;
+        }
+    }
+    return NULL;
+}
+
 
 void crear_hilo_escucha(void)
 {
 
     if (pthread_create(&hilo_escucha, NULL, escuchar_servidores, NULL) != 0) // chequear si el hilo se creo correctamente
-    {
+    { 
         log_error(logger, "No se pudo crear el hilo de escucha");
         exit(EXIT_FAILURE);
     }
@@ -76,107 +99,4 @@ void crear_hilo_escucha(void)
     log_info(logger, "Hilo de escucha de Placa y Planificador iniciado");
 }
 
-void *escuchar_servidores(void *arg)
-{
 
-    while (1) // TODO: recibir y procesar mensajes de Placa y Planificador
-    {
-        fd_set sockets; // Creo una lista de sockets que voy controlar de forma simultanea
-
-        FD_ZERO(&sockets); // Incializa la lista de sockets
-
-        // FD_SET(socket_placa, &sockets);        // Agrego los sockets a la lista // saco el de la placa para uqe no compitan
-        FD_SET(socket_planificador, &sockets); // Agrego los sockets a la lista
-
-        // La funcion select necesita saber cual es el numero de socket mas grande
-
-        // int max_socket = socket_placa;
-
-        // if (socket_planificador > max_socket)
-        // {
-        //     max_socket = socket_planificador;
-        // }
-
-       //acá se realizan cambios para evitar la condicion de carrera en la escucha de hilos 
-
-        // Se queda esperando a que alguno de los sockets tenga datos listos para leer
-        int resultado = select(socket_planificador + 1, &sockets, NULL, NULL, NULL); 
-
-        if (resultado == -1) //  Chequeo que select sea valido
-        {
-            if (errno == EINTR)
-            {
-                continue;
-            }
-
-            log_error(logger, "Error en select()");
-            break;
-        }
-
-        if (FD_ISSET(socket_planificador, &sockets)) //  Me fijo si el socket de PLACA fue el que se activo
-        {
-
-            int cod_op = recibir_operacion(socket_planificador);
-
-            if (cod_op == -1)
-            {
-                log_warning(logger, "Se desconecto el PLANIFICADOR");
-                exit(EXIT_FAILURE);
-            }
-
-            switch (cod_op)
-            {
-            case INTERRUPCION:  // aca era DESALOJAR_JOB
-            {
-                    int size;
-                    char *buffer = recibir_buffer(&size, socket_planificador);
-                    if (buffer != NULL) {
-                        free(buffer);
-                    }
-
-                    log_info(logger, "## Interrupción recibida");
-                    hay_interrupcion = 1; 
-                    break;
-            }
-
-            case MENSAJE:
-            {
-                int size;
-                char *buffer = recibir_buffer(&size, socket_planificador);
-                log_info(logger, "Me llego el mensaje: %s", buffer);
-                free(buffer);
-
-                // Confirmación simple de vuelta al cliente
-                enviar_mensaje("CONFIRMACION_RECIBIDA", socket_planificador);
-                break;
-            }
-
-            default:
-                log_warning(logger, "Operacion desconocida desde PLACA: %d", cod_op);
-                break;
-            }
-        }
-
-        // if (FD_ISSET(socket_planificador, &sockets)) //  Me fijo si el socket de PLANIFICADOR fue el que se activo
-        // {
-
-        //     int cod_op = recibir_operacion(socket_planificador);
-
-        //     if (cod_op == -1)
-        //     {
-        //         log_warning(logger, "Se desconecto PLANIFICADOR");
-        //         exit(EXIT_FAILURE);
-        //     }
-
-        //     switch (cod_op)
-        //     {
-            
-
-        //     default:
-        //         log_warning(logger, "Operacion desconocida desde PLANIFICADOR: %d", cod_op);
-        //         break;
-        //     }
-        // }
-    }
-    return NULL;
-}
