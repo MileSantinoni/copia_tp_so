@@ -4,6 +4,7 @@
 #include <errno.h>
 
 #include "core.h"
+#include "conexiones.h"
 #include "registro.h"
 #include "ciclo_de_instruccion.h"
 #include "registro.h"
@@ -97,7 +98,7 @@ void ciclo_de_instruccion(int socket_dispatch, int socket_placa, uint32_t jid)
             registros_cpu.PC++;
         }
 
-        verificar_interrupcion(socket_dispatch);
+        //verificar_interrupcion(socket_dispatch);
 
 
         // registros_cpu.PC++; // incremento el pc para que apunte a la siguiente instruccion
@@ -105,15 +106,22 @@ void ciclo_de_instruccion(int socket_dispatch, int socket_placa, uint32_t jid)
         // free(instruccion);
 
         // chequeamos interrupt
+        pthread_mutex_lock(&mutex_interrupcion);
         if (hay_interrupcion)
         {
-            log_info(logger, "## Interrupción detectada. Desalojando proceso JID: %d...", jid);
             hay_interrupcion = 0;
             ejecutando = 0;
+            pthread_mutex_unlock(&mutex_interrupcion);
+            log_info(logger, "## Interrupción detectada. Desalojando proceso JID: %d...", jid);
+            
+            
 
             // devuelvo el contexto actualizado al planificador por desalojo
             enviar_contexto(socket_dispatch, DEVOLVER_CONTEXTO, jid, &registros_cpu);
             
+        }
+        else{
+            pthread_mutex_unlock(&mutex_interrupcion);
         }
     }
 }

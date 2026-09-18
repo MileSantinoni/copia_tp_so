@@ -10,12 +10,15 @@
 #include <utils/protocolo.h>
 #include <utils/util.h>
 
+pthread_mutex_t mutex_interrupcion = PTHREAD_MUTEX_INITIALIZER; // defino e inicializo el mutex para proteger la variable compartida 
 extern t_log * logger;
 extern int hay_interrupcion;
 int socket_dispatch = -1;
 int socket_interrupt = -1; // el valor -1 de los sockets me indican que el socket aun no fue creado o que ya se cerro
 int socket_placa = -1;
 pthread_t hilo_escucha;
+
+
 
 void enviar_id(int socket, int id){
 
@@ -75,7 +78,9 @@ void * escuchar_interrupt(void *arg){
                 free(buffer);
                 
                 log_info(logger, "## Interrupción recibida");
+                pthread_mutex_lock(&mutex_interrupcion); // bloqueo para garantizar exclusion mutua sobre la variable compartida 
                 hay_interrupcion = 1;
+                pthread_mutex_unlock(&mutex_interrupcion); // fin de la seccion critica, libero el lock tras actualizar el flag
                 break;
             }
             default:

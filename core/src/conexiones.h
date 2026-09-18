@@ -4,7 +4,11 @@
 #include <commons/log.h>
 #include <pthread.h>
 #include <stdint.h>
+#include <pthread.h>
 
+
+extern int hay_interrupcion; // flag compartido entre el hilo de escucha y el hilo del ciclo de instruccion
+extern pthread_mutex_t mutex_interrupcion; //mutex el cual sirve para evitar condiciones de carrera en el acceso y modificaciones en hay_interrupcion
 extern int socket_dispatch;
 extern int socket_interrupt;
 extern int socket_placa;
