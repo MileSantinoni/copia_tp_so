@@ -61,7 +61,7 @@ int conectar_con_placa(char* ip, char* puerto, int id_core) {
     return sock;
 }
 
-void * escuchar_servidores(void *arg){
+void * escuchar_interrupt(void *arg){
     while(1){
         int cod_op = recibir_operacion (socket_interrupt);
         if (cod_op == -1){
@@ -90,13 +90,18 @@ void * escuchar_servidores(void *arg){
 void crear_hilo_escucha(void)
 {
 
-    if (pthread_create(&hilo_escucha, NULL, escuchar_servidores, NULL) != 0) // chequear si el hilo se creo correctamente
+    if (socket_interrupt == -1){
+        log_error (logger, "No se puede iniciar el hilo: socket_interrupt no está conectado");
+        return;
+    }
+    if (pthread_create(&hilo_escucha, NULL, escuchar_interrupt, NULL) != 0)
     { 
-        log_error(logger, "No se pudo crear el hilo de escucha");
+        log_error(logger, "No se pudo crear el hilo de escucha de interrupciones");
         exit(EXIT_FAILURE);
     }
+    pthread_detach(hilo_escucha);
+    log_info(logger, "Hilo de escucha de interrupciones iniciado");
 
-    log_info(logger, "Hilo de escucha de Placa y Planificador iniciado");
 }
 
 
