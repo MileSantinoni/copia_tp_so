@@ -27,7 +27,8 @@ typedef struct{
 
 typedef struct{
     u_int32_t id_core;
-    int socket;
+    int socket_dispatch;
+    int socket_interrupt;
     bool libre;
     u_int32_t jid_actual;
 
@@ -70,15 +71,14 @@ extern sem_t sem_cupo_multiprogramacion;
 
 // FUNCIONES GENERALES
 
-t_core *obtener_core_libre();
-t_job *buscar_por_jid(t_list *lista_job, u_int32_t jid);
-char *estado_a_string(t_estado estado);
-void log_cambio_estado(uint32_t jid, char *anterior, char *actual);
-t_core *buscar_core_por_socket(t_list *lista_core, int socket);
-t_job *buscar_job_por_jid(t_list *lista_job, u_int32_t jid);
-void finalizar_job(t_job *job, char *motivo);
+//t_core *obtener_core_libre();
+//t_job *buscar_por_jid(t_list *lista_job, u_int32_t jid);
+//char *estado_a_string(t_estado estado);
+
+//t_job *buscar_job_por_jid(t_list *lista_job, u_int32_t jid);
+/*void finalizar_job(t_job *job, char *motivo);
 void pasar_a_ready(t_job *job);
-void encolar_new(t_job *job);
+void encolar_new(t_job *job);*/
 
 
 

@@ -21,4 +21,7 @@ void terminar_modulo(void);
 
 char* motivo_de_desalojo_a_string(t_motivo_desalojo motivo);
 
+void enviar_tipo_conexion_core(int socket, int tipo_conexion);
+int recibir_tipo_conexion_core(int socket);
+
 #endif

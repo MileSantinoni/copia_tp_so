@@ -78,7 +78,7 @@ int esperar_cliente(int socket_servidor)
     // int socket_cliente= accept(socket_servidor, NULL,NULL); //no va?
     // int fd_conexion=accept(fd_escucha,NULL,NULL);//los NULL son informacion como ip o puerto?
     int socket_cliente = accept(socket_servidor, NULL, NULL);
-    log_info(logger, "Se conecto un cliente!");
+    //log_info(logger, "Se conecto un cliente!");
 
     return socket_cliente;
 }

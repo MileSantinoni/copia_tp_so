@@ -31,7 +31,7 @@ void enviar_id(int socket, int id){
     log_info(logger, "ID CORE <%i> enviado a socket: %i", id, socket);
 }
 
-int conectar_con_planificador(char* ip, char* puerto, int id_core) {
+int conectar_con_planificador(char* ip, char* puerto, int id_core, int tipo_conexion) {
     log_info(logger, "Intentando conectar con Planificador (%s:%s)...", ip, puerto);
     
     int sock = crear_conexion(ip, puerto);
@@ -42,6 +42,9 @@ int conectar_con_planificador(char* ip, char* puerto, int id_core) {
 
     enviar_handshake(sock, CORE);
     enviar_id(sock,id_core);
+    enviar_tipo_conexion_core(sock, tipo_conexion);
+    
+
     log_info(logger, "## Conectado a Planificador exitosamente");
     
     return sock;

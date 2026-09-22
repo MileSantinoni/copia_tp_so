@@ -60,7 +60,7 @@ void despachar_proceso()
     core_elegido->jid_actual = job_elegido->jid;
     pthread_mutex_unlock(&mutex_lista_core);
 
-    enviar_contexto(core_elegido->socket, DESPACHAR_JOB, job_elegido->jid, job_elegido->contexto);
+    enviar_contexto(core_elegido->socket_dispatch, DESPACHAR_JOB, job_elegido->jid, job_elegido->contexto);
 
     if (strcmp(algoritmo_planificacion, "RR") == 0)
     { 
@@ -92,7 +92,7 @@ void *controlar_quantum(void* arg)
     t_paquete * paquete = crear_paquete(INTERRUPCION);
     agregar_a_paquete(paquete,&datos->job->jid,sizeof(datos->job->jid));
     agregar_a_paquete(paquete,&motivo,sizeof(motivo));
-    enviar_paquete(paquete,datos->core->socket);
+    enviar_paquete(paquete,datos->core->socket_interrupt);
     eliminar_paquete(paquete);
 
     free(datos);

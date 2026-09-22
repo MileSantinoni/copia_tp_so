@@ -77,7 +77,7 @@ int main(int argc, char *argv[])
     enviar_paquete(paquete_prueba, socket_planificador);
     eliminar_paquete(paquete_prueba);*/
     // 1. Conexion dispatch
-    socket_dispatch = conectar_con_planificador(ip_planificador, puerto_planificador, atoi(id_core));
+    socket_dispatch = conectar_con_planificador(ip_planificador, puerto_planificador, atoi(id_core),CONEXION_DISPATCH);
     if (socket_dispatch == -1)
     {
         terminar_modulo();
@@ -85,7 +85,7 @@ int main(int argc, char *argv[])
     }
 
     // 2. Conexion interrupt
-    socket_interrupt = conectar_con_planificador(ip_planificador, puerto_planificador, atoi(id_core));
+    socket_interrupt = conectar_con_planificador(ip_planificador, puerto_planificador, atoi(id_core),CONEXION_INTERRUPT);
     if (socket_interrupt == -1)
     {
         liberar_conexion(socket_dispatch);

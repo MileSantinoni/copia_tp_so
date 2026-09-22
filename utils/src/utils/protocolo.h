@@ -9,6 +9,7 @@ typedef enum
 	PAQUETE,
     CONEXION, //  Agregue este para que el op_code del paquete se este y la info que agregamos es el t_modulo correspondinete
     ENVIO_ID, 
+    ENVIO_TIPO_CONEXION,
 
     // Operaciones check N2
 
@@ -18,7 +19,7 @@ typedef enum
     // PLANI <--> CORE
     DEVOLVER_CONTEXTO,
     DESPACHAR_JOB, // planificador despacha el job al core
-    // DESALOJAR_JOB,  // Fin de quantum / interrupcion 
+    DESALOJAR_JOB,  // Fin de quantum / interrupcion 
     INTERRUPCION, // Planificador le envia al core
     FINALIZAR_JOB, // core le envia al planificador y el planificador a placa+
 
@@ -33,6 +34,14 @@ typedef enum
     FIN_QUANTUM,
 
 } t_motivo_desalojo;
+
+
+
+typedef enum
+{
+    CONEXION_DISPATCH, // Conexión para recibir las instruccciones a ejecutar 
+    CONEXION_INTERRUPT // Conexión para recibir las interrupciones
+} t_tipo_conexion_core;
 
 
 typedef enum

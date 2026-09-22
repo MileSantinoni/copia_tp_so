@@ -13,7 +13,7 @@ extern int socket_dispatch;
 extern int socket_interrupt;
 extern int socket_placa;
 
-int conectar_con_planificador(char* ip, char* puerto, int id_core);
+int conectar_con_planificador(char* ip, char* puerto, int id_core, int  tipo);
 int conectar_con_placa(char* ip, char* puerto, int id_core);
 
 void crear_hilo_escucha(void);

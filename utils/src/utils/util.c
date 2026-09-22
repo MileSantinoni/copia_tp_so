@@ -117,4 +117,43 @@ char *motivo_de_desalojo_a_string(t_motivo_desalojo motivo)
     {
         return "FIN_QUANTUM";
     }
+    return NULL;
+}
+
+void enviar_tipo_conexion_core(int socket, int tipo_conexion)
+{
+
+    t_paquete *paquete = crear_paquete(ENVIO_TIPO_CONEXION);
+
+    agregar_a_paquete(paquete, &tipo_conexion, sizeof(t_modulo));
+    enviar_paquete(paquete, socket);
+    eliminar_paquete(paquete);
+
+    log_info(logger, "Tipo de conexión %i enviada a: %i",tipo_conexion, socket);
+}
+
+int recibir_tipo_conexion_core(int socket)
+{
+
+    int cod_op = recibir_operacion(socket);
+    if (cod_op != ENVIO_TIPO_CONEXION)
+    {
+
+        log_error(logger, "Error: Se esperaba la operacion ENVIO_TIPO_CONEXION pero se recibio op_code %d", cod_op);
+        exit(EXIT_FAILURE);
+    }
+
+    t_list *valores = recibir_paquete(socket);
+    if (valores == NULL || list_size(valores) == 0)
+    {
+        log_error(logger, "Error: No se pudieron recibir datos del paquete");
+        if (valores != NULL)
+            list_destroy(valores);
+        exit(EXIT_FAILURE);
+    }
+
+    int tipo_conexion = *(int *)list_get(valores, 0);
+    list_destroy_and_destroy_elements(valores, free);
+
+    return tipo_conexion;
 }

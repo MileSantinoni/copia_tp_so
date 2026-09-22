@@ -136,8 +136,10 @@ void *escuchar_placa_storage(void *arg)
             }
 
             default:
+
                 log_warning(logger, "Operacion desconocida desde PLACA: %d", cod_op);
-                break;
+                close(socket_placa);
+                return NULL;
             }
         }
 
@@ -162,13 +164,15 @@ void *escuchar_placa_storage(void *arg)
                 free(buffer);
 
                 // Confirmación simple de vuelta al cliente
-                //enviar_mensaje("CONFIRMACION_RECIBIDA", socket_storage);
+                // enviar_mensaje("CONFIRMACION_RECIBIDA", socket_storage);
                 break;
             }
 
             default:
+
                 log_warning(logger, "Operacion desconocida desde STORAGE: %d", cod_op);
-                break;
+                close(socket_storage);
+                return NULL;
             }
         }
     }

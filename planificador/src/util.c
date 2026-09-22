@@ -35,14 +35,14 @@ t_job *buscar_job_por_jid(t_list *lista_job, u_int32_t jid)
     return NULL;
 }
 
-t_core *buscar_core_por_socket(t_list *lista_core, int socket)
+t_core *buscar_core_por_socket_dispatch(t_list *lista_core, int socket)
 {
 
     for (int i = 0; i < list_size(lista_core); i++)
     {
         t_core *core_actual = (t_core *)list_get(lista_core, i);
 
-        if (core_actual->socket == socket)
+        if (core_actual->socket_dispatch == socket)
         {
             return core_actual;
         }
@@ -50,6 +50,20 @@ t_core *buscar_core_por_socket(t_list *lista_core, int socket)
     return NULL;
 }
 
+t_core *buscar_core_por_id(t_list *lista_cores, u_int32_t id_core)
+{
+
+    for (int i = 0; i < list_size(lista_cores); i++)
+    {
+        t_core *core_actual = (t_core *)list_get(lista_cores, i);
+
+        if (core_actual->id_core == id_core)
+        {
+            return core_actual;
+        }
+    }
+    return NULL;
+}
 
 // Para cuando un job deja de usar el CORE
 
@@ -57,7 +71,7 @@ void liberar_socket_core(int socket_core)
 {
 
     pthread_mutex_lock(&mutex_lista_core);
-    t_core *core_actual = buscar_core_por_socket(lista_cores, socket_core);
+    t_core *core_actual = buscar_core_por_socket_dispatch(lista_cores, socket_core);
     core_actual->libre = true;
     pthread_mutex_unlock(&mutex_lista_core);
 
@@ -127,12 +141,37 @@ void pasar_a_exec(t_job *job)
 
 // pasa un job a EXIT y libera un cupo de multiprogramacion
 // (esto lo tiene que llamar quien procese el FINALIZAR_JOB que manda el Core, ver nota de coordinacion abajo)
-void finalizar_job(t_job *job, char *motivo)
+void finalizar_job(t_job *job, char *motivo, u_int32_t id_core)
 {
+    
     log_cambio_estado(job->jid, estado_a_string(job->estado), "EXIT");
     job->estado = EXIT;
 
-    log_info(logger, "## (%d) finalizó su ejecución con motivo de %s. Estadísticas: %s", job->jid, motivo, "");
+    log_info(logger, "## (%d) Finalizó su ejecución con motivo de %s. Estadísticas: %s", job->jid, motivo, "");
 
+    // Libero el core 
+    pthread_mutex_lock(&mutex_lista_core);
+    t_core *core_actual = buscar_core_por_id(lista_cores, id_core);
+    core_actual->libre = true;
+    pthread_mutex_unlock(&mutex_lista_core);
+
+    sem_post(&sem_cores);    
     sem_post(&sem_cupo_multiprogramacion); // libero un lugar para que entre otro job de NEW
+}
+
+void actualizar_contexto(u_int32_t jid, t_registros *registros)
+{
+    
+    pthread_mutex_lock(&mutex_lista_jobs);
+    t_job *job_encontrado = buscar_job_por_jid(lista_jobs, jid);
+
+    if (job_encontrado == NULL)
+    {
+        log_error(logger, "No se encontro un JOB par jid :u%u", jid);
+        pthread_mutex_unlock(&mutex_lista_jobs);
+        return;
+    }
+
+    memcpy(job_encontrado->contexto, registros, sizeof(t_registros));
+    pthread_mutex_unlock(&mutex_lista_jobs);
 }
