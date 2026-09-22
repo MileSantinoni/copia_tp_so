@@ -48,6 +48,8 @@ sem_t sem_cola_block;
 sem_t sem_cupo_multiprogramacion;
 int grado_max_multiprogramacion;
 
+char *algoritmo_planificacion;
+
 int main(int argc, char *argv[])
 {
 
@@ -69,6 +71,7 @@ int main(int argc, char *argv[])
 
     t_log_level log_level = log_level_from_string(config_get_string_value(config, "LOG_LEVEL"));
     logger = log_create("planificador.log", "Planificador", 1, log_level);
+    algoritmo_planificacion = config_get_string_value(config, "ALGORITMO_PLANIFICACION");
 
     if (logger == NULL)
     {
@@ -103,6 +106,7 @@ int main(int argc, char *argv[])
 
     pthread_t hilo_corto_plazo;
     pthread_create(&hilo_corto_plazo, NULL, planificador_corto_plazo, NULL);
+    log_info(logger, "Algoritmo de planificación:  %s ", algoritmo_planificacion);
  
 
     // Job inicial: se crea, se le avisa a la Placa, y se encola en NEW

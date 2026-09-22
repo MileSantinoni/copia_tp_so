@@ -17,7 +17,7 @@ typedef enum
     CREAR_JOB, //planificador crea job y se lo manda a la placa
     
     // PLANI <--> CORE
-    DEVOLVER_CONTEXTO,
+    //DEVOLVER_CONTEXTO,
     DESPACHAR_JOB, // planificador despacha el job al core
     DESALOJAR_JOB,  // Fin de quantum / interrupcion 
     INTERRUPCION, // Planificador le envia al core

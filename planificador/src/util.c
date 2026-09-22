@@ -161,13 +161,12 @@ void finalizar_job(t_job *job, char *motivo, u_int32_t id_core)
 
 void actualizar_contexto(u_int32_t jid, t_registros *registros)
 {
-    
     pthread_mutex_lock(&mutex_lista_jobs);
     t_job *job_encontrado = buscar_job_por_jid(lista_jobs, jid);
 
     if (job_encontrado == NULL)
     {
-        log_error(logger, "No se encontro un JOB par jid :u%u", jid);
+        log_error(logger, "No se encontro un JOB par jid : %u", jid);
         pthread_mutex_unlock(&mutex_lista_jobs);
         return;
     }

@@ -10,6 +10,7 @@
 
 extern t_log *logger;
 extern t_config *config;
+extern char *algoritmo_planificacion;
 
 typedef enum{
     NEW,

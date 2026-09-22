@@ -25,7 +25,6 @@ void *planificador_corto_plazo(void *arg)
 void despachar_proceso()
 {
 
-    char *algoritmo_planificacion = config_get_string_value(config, "ALGORITMO_PLANIFICACION");
 
     t_job *job_elegido;
 
@@ -70,6 +69,7 @@ void despachar_proceso()
 
 void *controlar_quantum(void* arg)
 {
+   
     t_args_quantum* datos = (t_args_quantum*) arg;
 
     // Espero el quentum indicado. Multiplico poor 1000 porque usleep trabaja con microsegundo
@@ -86,7 +86,7 @@ void *controlar_quantum(void* arg)
 
     // Desalojo el proceso del core 
 
-    log_info(logger, "## %u - Desalojado por fin de quantum",datos->job->jid);
+    log_info(logger, "## (%u) - Desalojado por fin de quantum",datos->job->jid);
 
     t_motivo_desalojo motivo = FIN_QUANTUM;
     t_paquete * paquete = crear_paquete(INTERRUPCION);

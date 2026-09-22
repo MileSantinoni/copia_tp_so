@@ -45,7 +45,7 @@ void ciclo_de_instruccion(int socket_dispatch, int socket_placa, uint32_t jid)
 
         if (cod_op != MENSAJE)
         {
-            log_error(logger,"Se esperaba MENSAJE de Placa pero llego op_code: %d",cod_op);
+            log_error(logger, "Se esperaba MENSAJE de Placa pero llego op_code: %d", cod_op);
             break;
         }
 
@@ -98,7 +98,7 @@ void ciclo_de_instruccion(int socket_dispatch, int socket_placa, uint32_t jid)
 
             // Lo agregue para ver si terminaban bien los registros
             /*log_info(logger, "REGISTROS \n AX=%u \n BX=%u \n CX=%u \n DX=%u \n E1=%u  \n E2=%u \n E3=%u \n P0=%u \n P1=%u \n P2=%u \n P3=%u \n P4=%u  \n" ,
-                registros_cpu.AX, registros_cpu.BX, registros_cpu.CX, registros_cpu.DX, 
+                registros_cpu.AX, registros_cpu.BX, registros_cpu.CX, registros_cpu.DX,
                 registros_cpu.E1, registros_cpu.E2, registros_cpu.E3,
                 registros_cpu.P0, registros_cpu.P1, registros_cpu.P2, registros_cpu.P3, registros_cpu.P4,registros_cpu.P5);*/
 

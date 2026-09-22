@@ -68,7 +68,7 @@ bool comparar_por_socket(void *ptr)
 void *atender_core(void *arg)
 {
 
-    int socket_core= *(int *)arg;
+    int socket_core = *(int *)arg;
     free(arg);
 
     t_modulo modulo = recibir_handshake(socket_core);
@@ -116,7 +116,6 @@ void *atender_core(void *arg)
     {
         log_error(logger, "No es un tipo de conexion válida");
     }
-   
 
     if (core->socket_dispatch != -1 && core->socket_interrupt != -1)
     {
@@ -124,7 +123,12 @@ void *atender_core(void *arg)
         sem_post(&sem_cores);
     }
 
-     pthread_mutex_unlock(&mutex_lista_core);
+    pthread_mutex_unlock(&mutex_lista_core);
+
+    if (tipo_conexion == CONEXION_INTERRUPT)
+    {
+        return NULL;
+    }
     // Recibo operaciones de CORE
     while (1)
     {
@@ -157,39 +161,34 @@ void *atender_core(void *arg)
             // enviar_mensaje("CONFIRMACION_RECIBIDA", socket_core);
             break;
         }
-        case DEVOLVER_CONTEXTO:
+        case DESALOJAR_JOB:
         {
             u_int32_t jid;
             t_registros registros;
             recibir_contexto(core->socket_dispatch, &jid, &registros);
-
-            // Tengo que recibir el motivo todavia pero no se como me lo mandan
-            /*t_motivo_desalojo motivo;
-            char *motivo_s = motivo_de_desalojo_a_string(motivo);*/
+           
+            // FALTA RECIBIR EL MOTIVO DE DESALOJAR JOB
 
             actualizar_contexto(jid, &registros);
 
-            /*if (strcmp(motivo_s, "FIN_QUANTUM") == 0)
-             {
+            pthread_mutex_lock(&mutex_lista_jobs);
+            t_job *job_encontrado = buscar_job_por_jid(lista_jobs, jid);
+            pthread_mutex_unlock(&mutex_lista_jobs);
 
-                 pasar_a_ready(job_encontrado);
-             }
+            pasar_a_ready(job_encontrado);
 
-             if (strcmp(motivo_s, "FINALIZAR_JOB") == 0)
-             {
+            // Libero el core
+            pthread_mutex_lock(&mutex_lista_core);
+            t_core *core_actual = buscar_core_por_id(lista_cores, id_core);
+            core_actual->libre = true;
+            pthread_mutex_unlock(&mutex_lista_core);
 
-                 // Si el moptivo para devolver contexto es finalizar job, tengo que recibir el motivo por que el se finalizo
-                 char *motivo_finalizacion; // noc como me lo van a mandar
-                 finalizar_job(job_encontrado, motivo_finalizacion);
-             }*/
-
-            // Liberamos el CORE correspondiente
-            // liberar_socket_core(socket_core);
+            sem_post(&sem_cores);
             break;
         }
         case FINALIZAR_JOB:
         {
-           
+
             u_int32_t jid;
             t_registros registros;
 
@@ -201,7 +200,6 @@ void *atender_core(void *arg)
             t_job *job_encontrado = buscar_job_por_jid(lista_jobs, jid);
             pthread_mutex_unlock(&mutex_lista_jobs);
 
-           
             finalizar_job(job_encontrado, "EXIT", id_core);
 
             break;
