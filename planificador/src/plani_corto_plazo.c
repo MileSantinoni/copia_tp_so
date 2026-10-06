@@ -86,8 +86,6 @@ void *controlar_quantum(void* arg)
 
     // Desalojo el proceso del core 
 
-    log_info(logger, "## (%u) - Desalojado por fin de quantum",datos->job->jid);
-
     t_motivo_desalojo motivo = FIN_QUANTUM;
     t_paquete * paquete = crear_paquete(INTERRUPCION);
     agregar_a_paquete(paquete,&datos->job->jid,sizeof(datos->job->jid));
@@ -95,6 +93,8 @@ void *controlar_quantum(void* arg)
     enviar_paquete(paquete,datos->core->socket_interrupt);
     eliminar_paquete(paquete);
 
+    log_info(logger, "## (%u) - Desalojado por fin de quantum",datos->job->jid);
+    
     free(datos);
     return NULL;
 }

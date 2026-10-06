@@ -11,8 +11,8 @@
 #include<string.h>
 #include<assert.h>
 #include <utils/protocolo.h>
-
-
+#include <pthread.h>
+#include <semaphore.h>
 
 extern t_log *logger;
 
@@ -28,6 +28,23 @@ typedef struct
 	t_buffer* buffer;
 } t_paquete;
 
+// PETICIONES
+// Hice esta estructura para poder manejar las respuestas de confirmacion, porque si se envia solo un mensaje no podemos manejar el error y/o podemos tener dos recv en un mismo socket
+typedef struct {
+	u_int32_t id_solicitd; // si un proceso hace mas de una MISMA operacion
+	op_code operacion;
+	u_int32_t jid;
+	bool exito;
+	sem_t sem_respuesta;
+}t_solicitud_pendiente;
+
+extern t_list *solicitudes_pendientes;
+extern pthread_mutex_t mutex_lista_sol_pendientes;
+
+u_int32_t siguiente_id_solicitud();
+t_solicitud_pendiente* crear_solicitud_pendiente(u_int32_t jid, int operacion);
+void eliminar_solicitud_pendiente(t_solicitud_pendiente* peticion);
+t_solicitud_pendiente*  buscar_solicitud_por_id_solicitud(t_list* solicitudes_pendientes, u_int32_t id);
 
 void crear_buffer(t_paquete *paquete);
 t_paquete *crear_paquete(op_code codigo_operacion);

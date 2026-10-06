@@ -65,7 +65,7 @@ t_core *buscar_core_por_id(t_list *lista_cores, u_int32_t id_core)
     return NULL;
 }
 
-// Para cuando un job deja de usar el CORE
+// LIBERAR ESTRUCTURAS
 
 void liberar_socket_core(int socket_core)
 {
@@ -76,6 +76,12 @@ void liberar_socket_core(int socket_core)
     pthread_mutex_unlock(&mutex_lista_core);
 
     sem_post(&sem_cores);
+}
+
+void liberar_job(t_job *job)
+{
+    free(job->contexto);
+    free(job);
 }
 
 // MANEJO DE ESTADOS
@@ -143,19 +149,22 @@ void pasar_a_exec(t_job *job)
 // (esto lo tiene que llamar quien procese el FINALIZAR_JOB que manda el Core, ver nota de coordinacion abajo)
 void finalizar_job(t_job *job, char *motivo, u_int32_t id_core)
 {
-    
+
     log_cambio_estado(job->jid, estado_a_string(job->estado), "EXIT");
     job->estado = EXIT;
 
     log_info(logger, "## (%d) Finalizó su ejecución con motivo de %s. Estadísticas: %s", job->jid, motivo, "");
 
-    // Libero el core 
+    // Libero el core
     pthread_mutex_lock(&mutex_lista_core);
     t_core *core_actual = buscar_core_por_id(lista_cores, id_core);
     core_actual->libre = true;
     pthread_mutex_unlock(&mutex_lista_core);
 
-    sem_post(&sem_cores);    
+    // Elimino la estructura del job
+    liberar_job(job);
+
+    sem_post(&sem_cores);
     sem_post(&sem_cupo_multiprogramacion); // libero un lugar para que entre otro job de NEW
 }
 

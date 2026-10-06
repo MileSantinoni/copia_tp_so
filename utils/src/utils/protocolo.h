@@ -10,6 +10,7 @@ typedef enum
     CONEXION, //  Agregue este para que el op_code del paquete se este y la info que agregamos es el t_modulo correspondinete
     ENVIO_ID, 
     ENVIO_TIPO_CONEXION,
+    RESPUESTA_SOLICITUD,
 
     // Operaciones check N2
 

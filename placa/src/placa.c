@@ -10,7 +10,7 @@ t_log *logger;
 t_config *config;
 t_config_placa config_valores;
 
-t_dictionary* diccionario_jobs;
+t_dictionary *diccionario_jobs;
 pthread_mutex_t mutex_jobs = PTHREAD_MUTEX_INITIALIZER;
 
 int socket_core;
@@ -51,7 +51,7 @@ int main(int argc, char *argv[])
 void inicializar_placa(char *path_config)
 {
     diccionario_jobs = dictionary_create();
-    
+
     config = config_create(path_config);
 
     if (config == NULL)
@@ -111,7 +111,7 @@ void *atender_cliente(void *arg)
     case CORE:
     {
         socket_core = socket_cliente;
-        int id_core = recibir_core_id(socket_core);
+        int id_core = recibir_core_id(socket_cliente);
         log_info(logger, "ID CORE: %i", id_core);
         break;
     }
@@ -128,7 +128,7 @@ void *atender_cliente(void *arg)
         return NULL;
     }
 
-        log_info(logger, "Esperando peticiones de %s", modulo_s);
+    log_info(logger, "Esperando peticiones de %s", modulo_s);
 
     while (1)
     {
@@ -143,14 +143,20 @@ void *atender_cliente(void *arg)
         {
         case CREAR_JOB:
         {
-            t_list* lista = recibir_paquete(socket_cliente);
+            t_list *lista = recibir_paquete(socket_cliente);
 
-            uint32_t jid = *(uint32_t*)list_get(lista, 0);
-            char* nombre_archivo = (char*)list_get(lista,1);
+            uint32_t jid = *(uint32_t *)list_get(lista, 0);
+            char *nombre_archivo = (char *)list_get(lista, 1);
+            uint32_t id_solicitud = *(uint32_t *)list_get(lista, 2);
+            char *mensaje = crear_job_en_placa(jid, nombre_archivo);
 
-            char* mensaje = crear_job_en_placa(jid, nombre_archivo);
-
-            enviar_mensaje(mensaje, socket_cliente);
+            // LE ENVIO LA RESPUESTA DE CREAR JOB
+            // enviar_mensaje(mensaje, socket_cliente);
+            t_paquete *paquete = crear_paquete(RESPUESTA_SOLICITUD);
+            agregar_a_paquete(paquete, mensaje,  strlen(mensaje) + 1);    
+            agregar_a_paquete(paquete, &id_solicitud, sizeof(uint32_t));
+            enviar_paquete(paquete, socket_cliente);
+            eliminar_paquete(paquete);
 
             list_destroy_and_destroy_elements(lista, free);
             break;
@@ -158,14 +164,15 @@ void *atender_cliente(void *arg)
 
         case FETCH_INSTRUCCION:
         {
-            t_list* lista = recibir_paquete(socket_cliente);
+            t_list *lista = recibir_paquete(socket_cliente);
 
-            uint32_t jid = *(uint32_t*)list_get(lista, 0);
-            uint32_t pc = *(uint32_t*)list_get(lista, 1);
+            uint32_t jid = *(uint32_t *)list_get(lista, 0);
+            uint32_t pc = *(uint32_t *)list_get(lista, 1);
 
-            char* instruccion = obtener_instruccion(jid, pc);
+            char *instruccion = obtener_instruccion(jid, pc);
             enviar_mensaje(instruccion != NULL ? instruccion : "ERROR", socket_cliente);
-            if(instruccion != NULL) free(instruccion);
+            if (instruccion != NULL)
+                free(instruccion);
 
             list_destroy_and_destroy_elements(lista, free);
             break;
@@ -173,9 +180,9 @@ void *atender_cliente(void *arg)
 
         case FINALIZAR_JOB:
         {
-            t_list* lista = recibir_paquete(socket_cliente);
+            t_list *lista = recibir_paquete(socket_cliente);
 
-            uint32_t jid = *(uint32_t*)list_get(lista, 0);
+            uint32_t jid = *(uint32_t *)list_get(lista, 0);
 
             finalizar_job_en_placa(jid);
 
@@ -211,14 +218,14 @@ void *atender_cliente(void *arg)
     return NULL;
 }
 
-char* obtener_instruccion(uint32_t jid, uint32_t pc)
+char *obtener_instruccion(uint32_t jid, uint32_t pc)
 {
     pthread_mutex_lock(&mutex_jobs);
-    char* clave = string_itoa(jid);
-    t_job_instrucciones* job = dictionary_get(diccionario_jobs, clave);
+    char *clave = string_itoa(jid);
+    t_job_instrucciones *job = dictionary_get(diccionario_jobs, clave);
     free(clave);
 
-    char* instruccion_copia = NULL;
+    char *instruccion_copia = NULL;
     if (job != NULL && pc < job->cantidad_instrucciones)
         instruccion_copia = strdup(job->instrucciones[pc]);
 
@@ -229,15 +236,15 @@ char* obtener_instruccion(uint32_t jid, uint32_t pc)
     else
         log_info(logger, "## JID: %d - Obtener instrucción: %u - Instrucción: %s", jid, pc, instruccion_copia);
 
-    return instruccion_copia; //es responsabilidad de quien la llama hacer free
+    return instruccion_copia; // es responsabilidad de quien la llama hacer free
 }
 
 void finalizar_job_en_placa(uint32_t jid)
 {
     pthread_mutex_lock(&mutex_jobs);
 
-    char* clave = string_itoa(jid);
-    t_job_instrucciones* job = dictionary_remove(diccionario_jobs, clave);
+    char *clave = string_itoa(jid);
+    t_job_instrucciones *job = dictionary_remove(diccionario_jobs, clave);
     free(clave);
 
     pthread_mutex_unlock(&mutex_jobs);
@@ -257,27 +264,27 @@ void finalizar_job_en_placa(uint32_t jid)
     log_info(logger, "## JID: %d - Job finalizado, estructuras liberadas en la Placa", jid);
 }
 
-char* crear_job_en_placa(uint32_t jid, char* nombre_archivo)
+char *crear_job_en_placa(uint32_t jid, char *nombre_archivo)
 {
-    char* path_completo = string_from_format("%s%s", config_valores.path_instrucciones, nombre_archivo);
-    
+    char *path_completo = string_from_format("%s%s", config_valores.path_instrucciones, nombre_archivo);
+
     log_info(logger, "Intentando abrir archivo: %s", path_completo);
-    
-    FILE* archivo = fopen(path_completo, "r");
+
+    FILE *archivo = fopen(path_completo, "r");
     free(path_completo);
 
-    if(archivo == NULL)
+    if (archivo == NULL)
     {
         log_error(logger, "## JID: %d - Error al abrir archivo de instrucciones: %s", jid, nombre_archivo);
         return "ERROR EN CREAR JOB";
-    } 
+    }
 
-    t_job_instrucciones* job = malloc(sizeof(t_job_instrucciones));
+    t_job_instrucciones *job = malloc(sizeof(t_job_instrucciones));
     job->jid = jid;
     job->instrucciones = NULL;
     job->cantidad_instrucciones = 0;
 
-    char* linea = NULL;
+    char *linea = NULL;
     size_t len = 0;
 
     while (getline(&linea, &len, archivo) != -1)
@@ -285,7 +292,7 @@ char* crear_job_en_placa(uint32_t jid, char* nombre_archivo)
         /* Saco el salto de linea si hay */
         linea[strcspn(linea, "\n")] = '\0';
 
-        job->instrucciones = realloc(job->instrucciones, sizeof(char*) * (job->cantidad_instrucciones + 1));
+        job->instrucciones = realloc(job->instrucciones, sizeof(char *) * (job->cantidad_instrucciones + 1));
         job->instrucciones[job->cantidad_instrucciones] = strdup(linea);
         job->cantidad_instrucciones++;
     }
@@ -294,7 +301,7 @@ char* crear_job_en_placa(uint32_t jid, char* nombre_archivo)
     fclose(archivo);
 
     pthread_mutex_lock(&mutex_jobs);
-    char* clave = string_itoa(jid);
+    char *clave = string_itoa(jid);
     dictionary_put(diccionario_jobs, clave, job);
     free(clave);
     pthread_mutex_unlock(&mutex_jobs);

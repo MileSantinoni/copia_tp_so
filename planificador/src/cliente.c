@@ -8,6 +8,7 @@
 #include <utils/comunicacion.h>
 #include <utils/protocolo.h>
 #include <utils/util.h>
+#include <planificador.h>
 
 int socket_placa;
 int socket_storage;
@@ -132,6 +133,36 @@ void *escuchar_placa_storage(void *arg)
                 log_info(logger, "Mensaje recibido de Placa: %s", mensaje);
 
                 free(mensaje);
+                break;
+            }
+            case RESPUESTA_SOLICITUD:
+            {
+                t_list *paquete = recibir_paquete(socket_placa);
+                char *respuesta = (char *)list_get(paquete, 0);
+                uint32_t id_solicitud = *(uint32_t *)list_get(paquete, 1);
+
+                pthread_mutex_lock(&mutex_lista_sol_pendientes);
+                t_solicitud_pendiente *solicitud = buscar_solicitud_por_id_solicitud(solicitudes_pendientes, id_solicitud);
+
+                if (solicitud == NULL)
+                {
+                    log_error(logger,"No se encontro la solicitud pendiente con ID %u",id_solicitud);
+
+                    pthread_mutex_unlock(&mutex_lista_sol_pendientes);
+                    list_destroy_and_destroy_elements(paquete, free);
+                    break;
+                }
+                
+                if (strcmp(respuesta, "CREAR JOB OK") == 0)
+                {
+                    solicitud->exito = true;
+                } // ACA IRIAN TODAS LAS RESPUESTAS POSITIVAS
+
+                sem_post(&solicitud->sem_respuesta);
+
+                pthread_mutex_unlock(&mutex_lista_sol_pendientes);
+
+                list_destroy_and_destroy_elements(paquete, free);
                 break;
             }
 

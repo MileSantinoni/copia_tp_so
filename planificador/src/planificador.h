@@ -38,6 +38,8 @@ typedef struct{
 void incializar_mutex();
 void incializar_semaforos();
 void incializar_listas();
+void finalizar_planificador();
+
 
 // LISTA DE TODOS LOS JOBS
 
@@ -65,21 +67,10 @@ extern pthread_mutex_t mutex_cola_block;
 extern sem_t sem_cola_block;
 
 
-
 // MULTIPROGRAMACIÓN
 
 extern sem_t sem_cupo_multiprogramacion;
 
-// FUNCIONES GENERALES
-
-//t_core *obtener_core_libre();
-//t_job *buscar_por_jid(t_list *lista_job, u_int32_t jid);
-//char *estado_a_string(t_estado estado);
-
-//t_job *buscar_job_por_jid(t_list *lista_job, u_int32_t jid);
-/*void finalizar_job(t_job *job, char *motivo);
-void pasar_a_ready(t_job *job);
-void encolar_new(t_job *job);*/
 
 
 

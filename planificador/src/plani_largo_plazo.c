@@ -16,13 +16,15 @@
 t_job *crear_job(uint32_t jid){
     t_job *job = malloc(sizeof(t_job));
     job->jid = jid;
-    job->estado = NEW;
+    job->estado = NEW; 
 
     job->contexto = malloc(sizeof(t_registros));
     memset(job->contexto, 0, sizeof(t_registros)); // todos los registros arrancan en 0
 
+    pthread_mutex_lock(&mutex_lista_jobs);
     list_add(lista_jobs, job);
     // !!!! list_add sin mutex por ahora, ver nota de concurrencia abajo de todo !!!
+    pthread_mutex_unlock(&mutex_lista_jobs);
 
     log_info(logger, "## (%d) Se crea el Job - Estado: NEW", jid);
 
@@ -30,13 +32,14 @@ t_job *crear_job(uint32_t jid){
 }
 
 // le avisa a la Placa que existe este job, para que pueda leer las instrucciones y responder despues a los FETCH_INSTRUCCION del Core
-void enviar_crear_job_a_placa(uint32_t jid, char *nombre_archivo){
+void enviar_crear_job_a_placa(uint32_t jid, char *nombre_archivo, u_int32_t id_solicitud){
 
     log_info(logger,"Enviando CREAR_JOB a Placa - JID: %u - Archivo: %s",jid,nombre_archivo);
     t_paquete *paquete = crear_paquete(CREAR_JOB);
 
     agregar_a_paquete(paquete, &jid, sizeof(uint32_t));
     agregar_a_paquete(paquete, nombre_archivo, strlen(nombre_archivo) + 1);
+    agregar_a_paquete(paquete, &id_solicitud, sizeof(uint32_t));
 
     enviar_paquete(paquete, socket_placa);
     eliminar_paquete(paquete);

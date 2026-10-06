@@ -14,8 +14,6 @@
 #include <utils/protocolo.h>
 #include <utils/util.h>
 
-int socket_c;
-
 void *iniciar_conexion_como_servidor(void *arg)
 {
 
@@ -55,14 +53,6 @@ void *iniciar_conexion_como_servidor(void *arg)
         pthread_create(&thread, NULL, atender_core, fd_ptr);
         pthread_detach(thread);
     }
-}
-
-bool comparar_por_socket(void *ptr)
-{
-
-    t_core *core = (t_core *)ptr;
-
-    return core->socket_dispatch == socket_c;
 }
 
 void *atender_core(void *arg)
@@ -139,12 +129,29 @@ void *atender_core(void *arg)
             log_warning(logger, "Se desconecto CORE");
 
             pthread_mutex_lock(&mutex_lista_core);
-            t_core *core_a_eliminar = (t_core *)list_remove_by_condition(lista_cores, comparar_por_socket);
+            t_core *core_a_eliminar = buscar_core_por_id(lista_cores, core->id_core);
+            list_remove_element(lista_cores, core_a_eliminar);
             pthread_mutex_unlock(&mutex_lista_core);
 
-            free(core_a_eliminar);
-            sem_wait(&sem_cores);
+            if (!core_a_eliminar->libre)
+            {
+                pthread_mutex_lock(&mutex_lista_jobs);
+                t_job *job_actual = buscar_job_por_jid(lista_jobs, core_a_eliminar->jid_actual);
+                pthread_mutex_unlock(&mutex_lista_jobs);
+
+                if (job_actual != NULL)
+                {
+                    pasar_a_ready(job_actual);
+                }
+                // No hago sem wait aca porque ya se hizo en el plani de corto plazo cuando se paso el job a exc
+            }
+            else
+            {
+                sem_wait(&sem_cores);
+            }
+
             liberar_conexion(core->socket_dispatch);
+            free(core_a_eliminar);
             return NULL;
         }
 
@@ -166,7 +173,7 @@ void *atender_core(void *arg)
             u_int32_t jid;
             t_registros registros;
             recibir_contexto(core->socket_dispatch, &jid, &registros);
-           
+
             // FALTA RECIBIR EL MOTIVO DE DESALOJAR JOB
 
             actualizar_contexto(jid, &registros);

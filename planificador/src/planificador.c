@@ -15,6 +15,8 @@
 #include <utils/comunicacion.h>
 #include <utils/protocolo.h>
 
+#include "util.h"
+
 // VARIABLES DE CONFIGURACION
 
 t_log *logger;
@@ -50,6 +52,7 @@ int grado_max_multiprogramacion;
 
 char *algoritmo_planificacion;
 
+
 int main(int argc, char *argv[])
 {
 
@@ -79,6 +82,12 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
+    // Inicializo todo antes de iniciar las conexiones
+
+    incializar_mutex();
+    incializar_semaforos();
+    incializar_listas();
+
     // Parte cliente
     iniciar_conexiones(config);
     iniciar_hilo_escucha();
@@ -94,31 +103,42 @@ int main(int argc, char *argv[])
     // Obtener el nombre del Job inicial. argv[2] = nombre del job
     char *path_job_inicial = argv[2];
 
-    incializar_mutex();
-    incializar_semaforos();
-    incializar_listas();
-
     // HILOS DE PLANIFICADORES
 
     pthread_t hilo_largo_plazo;
     pthread_create(&hilo_largo_plazo, NULL, planificador_largo_plazo, NULL);
-    //pthread_detach(hilo_largo_plazo);
+    // pthread_detach(hilo_largo_plazo);
 
     pthread_t hilo_corto_plazo;
     pthread_create(&hilo_corto_plazo, NULL, planificador_corto_plazo, NULL);
     log_info(logger, "Algoritmo de planificación:  %s ", algoritmo_planificacion);
- 
 
     // Job inicial: se crea, se le avisa a la Placa, y se encola en NEW
     t_job *job_inicial = crear_job(0);
-    enviar_crear_job_a_placa(0, path_job_inicial);
-    encolar_new(job_inicial);
+
+    t_solicitud_pendiente *peticion = crear_solicitud_pendiente(job_inicial->jid, CREAR_JOB);
+
+    enviar_crear_job_a_placa(0, path_job_inicial,peticion->id_solicitd);
+
+    sem_wait(&peticion->sem_respuesta);
+
+    if (peticion->exito)
+    {
+        encolar_new(job_inicial);
+        eliminar_solicitud_pendiente(peticion);
+    }
+    else
+    {
+        log_error(logger, "Respuesta sin exito para crear el Job con pid %u en placa", job_inicial->jid);
+
+        liberar_job(job_inicial);
+        eliminar_solicitud_pendiente(peticion);
+        finalizar_planificador();
+        exit(EXIT_FAILURE);
+    }
 
     pthread_join(hilo_corto_plazo, NULL); // espera a que el hilo termine, para que no se cierre la consola
-    // Liberar todo
-    log_destroy(logger);
-    config_destroy(config);
-
+    finalizar_planificador();
     return 0;
 }
 
@@ -129,6 +149,7 @@ void incializar_mutex()
     pthread_mutex_init(&mutex_lista_core, NULL);
     pthread_mutex_init(&mutex_cola_new, NULL);
     pthread_mutex_init(&mutex_lista_jobs, NULL);
+    pthread_mutex_init(&mutex_lista_sol_pendientes, NULL);
 }
 
 void incializar_semaforos()
@@ -149,4 +170,12 @@ void incializar_listas()
     lista_cores = list_create();
 
     lista_jobs = list_create();
+
+    solicitudes_pendientes = list_create();
+}
+
+void finalizar_planificador()
+{
+    log_destroy(logger);
+    config_destroy(config);
 }

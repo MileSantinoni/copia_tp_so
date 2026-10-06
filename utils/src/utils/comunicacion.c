@@ -182,7 +182,7 @@ void enviar_contexto(int socket_destino, op_code codigo, uint32_t jid, t_registr
 
 void recibir_contexto(int socket_origen, uint32_t *jid, t_registros *registros)
 {
-		
+
 	int size;
 	void *buffer = recibir_buffer(&size, socket_origen); // variable vacia para que la funcion la complete con lo que leyo en la red
 	int desplazamiento = 0;								 // lo utilizo para saber en la posicion exacta de memoria que estoy parado
@@ -203,4 +203,59 @@ void recibir_contexto(int socket_origen, uint32_t *jid, t_registros *registros)
 	desplazamiento += sizeof(t_registros);
 
 	free(buffer);
+}
+
+// PETICIONES
+
+u_int32_t id_peticion = 0; // variable de id_peticion global para llevar el conteo y que no se repita
+pthread_mutex_t mutex_id_peticion = PTHREAD_MUTEX_INITIALIZER;
+
+u_int32_t siguiente_id_solicitud()
+{
+	pthread_mutex_lock(&mutex_id_peticion);
+	id_peticion++;
+	u_int32_t id = id_peticion;
+	pthread_mutex_unlock(&mutex_id_peticion);
+	return id;
+}
+
+t_list *solicitudes_pendientes;
+pthread_mutex_t mutex_lista_sol_pendientes;
+
+t_solicitud_pendiente *crear_solicitud_pendiente(u_int32_t jid, int operacion)
+{
+
+	t_solicitud_pendiente *solicitud_nueva = malloc(sizeof(t_solicitud_pendiente));
+
+	solicitud_nueva->id_solicitd = siguiente_id_solicitud();
+	solicitud_nueva->jid = jid;
+	solicitud_nueva->operacion = operacion;
+	solicitud_nueva->exito = false;
+	sem_init(&solicitud_nueva->sem_respuesta, 0, 0);
+
+	pthread_mutex_lock(&mutex_lista_sol_pendientes);
+	list_add(solicitudes_pendientes, solicitud_nueva);
+	pthread_mutex_unlock(&mutex_lista_sol_pendientes);
+
+	return solicitud_nueva;
+}
+
+void eliminar_solicitud_pendiente(t_solicitud_pendiente *peticion)
+{
+	sem_destroy(&peticion->sem_respuesta);
+	free(peticion);
+}
+
+t_solicitud_pendiente*  buscar_solicitud_por_id_solicitud(t_list*  solicitudes_pendientes, u_int32_t id){
+
+	for (int i = 0; i < list_size(solicitudes_pendientes); i++)
+    {
+        t_solicitud_pendiente *solicitud_actual = (t_solicitud_pendiente *)list_get(solicitudes_pendientes, i);
+
+        if (solicitud_actual->id_solicitd== id)
+        {
+            return solicitud_actual;
+        }
+    }
+    return NULL;
 }
