@@ -130,6 +130,7 @@ void pasar_a_ready(t_job *job)
 {
     log_cambio_estado(job->jid, estado_a_string(job->estado), "READY");
     job->estado = READY;
+    clock_gettime(CLOCK_MONOTONIC, &job->tiempo_inicio_ready);
 
     pthread_mutex_lock(&mutex_cola_ready);
     list_add(cola_ready, job);
@@ -142,6 +143,7 @@ void pasar_a_exec(t_job *job)
 {
     char *estado_anterior = estado_a_string(job->estado);
     log_cambio_estado(job->jid, estado_anterior, "EXEC");
+    clock_gettime(CLOCK_MONOTONIC, &job->tiempo_inicio_exec);
     job->estado = EXEC;
 }
 
@@ -182,4 +184,17 @@ void actualizar_contexto(u_int32_t jid, t_registros *registros)
 
     memcpy(job_encontrado->contexto, registros, sizeof(t_registros));
     pthread_mutex_unlock(&mutex_lista_jobs);
+}
+
+
+void actualizar_estimacion_prox_rafaga(t_job *job){
+
+    struct timespec tiempo_actual;
+    clock_gettime(CLOCK_MONOTONIC, &tiempo_actual);
+
+    double segundos= tiempo_actual.tv_sec - job->tiempo_inicio_ready.tv_sec;
+    double nanosegundos = tiempo_actual.tv_nsec - job->tiempo_inicio_ready.tv_nsec;
+
+    double rafaga_real = segundos *1000.0  + nanosegundos/1000000.0;
+    job->estimacion_proxima_rafaga=hrrn_alfa*rafaga_real+(1.0-hrrn_alfa)*job->estimacion_proxima_rafaga;
 }

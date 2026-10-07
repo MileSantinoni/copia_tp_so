@@ -33,7 +33,7 @@ typedef enum
 typedef enum
 {
     FIN_QUANTUM,
-
+    SYSCALL_BLOQUEANTE,
 } t_motivo_desalojo;
 
 

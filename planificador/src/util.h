@@ -27,5 +27,6 @@ void finalizar_job(t_job *job, char *motivo, u_int32_t id_core);
 // ACTTUALIZACION
 
 void actualizar_contexto(u_int32_t jid, t_registros *registros);
+void actualizar_estimacion_prox_rafaga(t_job *job);
 
 #endif

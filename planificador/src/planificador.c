@@ -21,6 +21,18 @@
 
 t_log *logger;
 t_config *config;
+t_log_level log_level;
+char *algoritmo_planificacion;
+
+int rr_quantum;
+int estimacion_inicial;
+double hrrn_alfa;
+int grado_max_multiprogramacion;
+sem_t sem_cupo_multiprogramacion;
+
+char *path_datos;
+int retardo_loader;
+char *path_reportes;
 
 // LISTA DE TODOS LOS JOBS
 
@@ -47,12 +59,6 @@ t_list *cola_block; // DEBERIAN SER DISTINTAS COLAS DE BLOQUEO SEGUN EL MOTIVO
 pthread_mutex_t mutex_cola_block;
 sem_t sem_cola_block;
 
-sem_t sem_cupo_multiprogramacion;
-int grado_max_multiprogramacion;
-
-char *algoritmo_planificacion;
-
-
 int main(int argc, char *argv[])
 {
 
@@ -72,9 +78,7 @@ int main(int argc, char *argv[])
         exit(EXIT_FAILURE);
     }
 
-    t_log_level log_level = log_level_from_string(config_get_string_value(config, "LOG_LEVEL"));
-    logger = log_create("planificador.log", "Planificador", 1, log_level);
-    algoritmo_planificacion = config_get_string_value(config, "ALGORITMO_PLANIFICACION");
+    obtener_config();
 
     if (logger == NULL)
     {
@@ -118,7 +122,7 @@ int main(int argc, char *argv[])
 
     t_solicitud_pendiente *peticion = crear_solicitud_pendiente(job_inicial->jid, CREAR_JOB);
 
-    enviar_crear_job_a_placa(0, path_job_inicial,peticion->id_solicitd);
+    enviar_crear_job_a_placa(0, path_job_inicial, peticion->id_solicitd);
 
     sem_wait(&peticion->sem_respuesta);
 
@@ -157,7 +161,6 @@ void incializar_semaforos()
     sem_init(&sem_cola_ready, 0, 0);
     sem_init(&sem_cores, 0, 0);
     sem_init(&sem_cola_new, 0, 0);
-    grado_max_multiprogramacion = config_get_int_value(config, "GRADO_MULTIPROGRAMACION");
     sem_init(&sem_cupo_multiprogramacion, 0, grado_max_multiprogramacion); // inicializo el semáforo de cupo con el valor del grado de multiprogramación, no en 0 (es un semáforo contador, no uno de señalización)
 }
 
@@ -178,4 +181,19 @@ void finalizar_planificador()
 {
     log_destroy(logger);
     config_destroy(config);
+}
+
+void obtener_config()
+{
+    log_level = log_level_from_string(config_get_string_value(config, "LOG_LEVEL"));
+    algoritmo_planificacion = config_get_string_value(config, "ALGORITMO_PLANIFICACION");
+
+    rr_quantum = config_get_int_value(config, "RR_QUANTUM");
+    estimacion_inicial = config_get_int_value(config, "ESTIMACION_INICIAL");
+    hrrn_alfa = config_get_double_value(config, "HRRN_ALFA");
+    grado_max_multiprogramacion = config_get_int_value(config, "GRADO_MULTIPROGRAMACION");
+
+    path_datos = config_get_string_value(config, "PATH_DATOS");
+    retardo_loader = config_get_int_value(config, "RETARDO_LOADER");
+    path_reportes = config_get_string_value(config, "PATH_REPORTES");
 }

@@ -174,23 +174,39 @@ void *atender_core(void *arg)
             t_registros registros;
             recibir_contexto(core->socket_dispatch, &jid, &registros);
 
-            // FALTA RECIBIR EL MOTIVO DE DESALOJAR JOB
-
             actualizar_contexto(jid, &registros);
-
             pthread_mutex_lock(&mutex_lista_jobs);
             t_job *job_encontrado = buscar_job_por_jid(lista_jobs, jid);
+            
             pthread_mutex_unlock(&mutex_lista_jobs);
 
-            pasar_a_ready(job_encontrado);
+            // FALTA RECIBIR EL MOTIVO DE DESALOJAR JOB
+            op_code motivo;
+            switch (motivo)
+            {
+            case SYSCALL_BLOQUEANTE:
+            {
+                actualizar_estimacion_prox_rafaga(job_encontrado);
+                // falta completar
+                break;
+            }
+            case FIN_QUANTUM:
+            {
+                pasar_a_ready(job_encontrado);
 
-            // Libero el core
-            pthread_mutex_lock(&mutex_lista_core);
-            t_core *core_actual = buscar_core_por_id(lista_cores, id_core);
-            core_actual->libre = true;
-            pthread_mutex_unlock(&mutex_lista_core);
+                // Libero el core
+                pthread_mutex_lock(&mutex_lista_core);
+                t_core *core_actual = buscar_core_por_id(lista_cores, id_core);
+                core_actual->libre = true;
+                pthread_mutex_unlock(&mutex_lista_core);
 
-            sem_post(&sem_cores);
+                sem_post(&sem_cores);
+            }
+            default:
+                log_error(logger, "El motivo %i no es válido", motivo);
+                break;
+            }
+
             break;
         }
         case FINALIZAR_JOB:

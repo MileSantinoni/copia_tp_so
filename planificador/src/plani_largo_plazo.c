@@ -17,6 +17,7 @@ t_job *crear_job(uint32_t jid){
     t_job *job = malloc(sizeof(t_job));
     job->jid = jid;
     job->estado = NEW; 
+    job->estimacion_proxima_rafaga=estimacion_inicial;
 
     job->contexto = malloc(sizeof(t_registros));
     memset(job->contexto, 0, sizeof(t_registros)); // todos los registros arrancan en 0
