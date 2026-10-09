@@ -149,8 +149,7 @@ void pasar_a_exec(t_job *job)
 
 // pasa un job a EXIT y libera un cupo de multiprogramacion
 // (esto lo tiene que llamar quien procese el FINALIZAR_JOB que manda el Core, ver nota de coordinacion abajo)
-void finalizar_job(t_job *job, char *motivo, u_int32_t id_core)
-{
+void finalizar_job(t_job *job, char *motivo, u_int32_t id_core){
 
     log_cambio_estado(job->jid, estado_a_string(job->estado), "EXIT");
     job->estado = EXIT;
@@ -161,7 +160,13 @@ void finalizar_job(t_job *job, char *motivo, u_int32_t id_core)
     pthread_mutex_lock(&mutex_lista_core);
     t_core *core_actual = buscar_core_por_id(lista_cores, id_core);
     core_actual->libre = true;
+    core_actual->jid_actual = -1; //reseteo antes de liberar mutex
     pthread_mutex_unlock(&mutex_lista_core);
+
+    // Lo saco de la lista general ANTES de liberarlo
+    pthread_mutex_lock(&mutex_lista_jobs);
+    list_remove_element(lista_jobs, job);
+    pthread_mutex_unlock(&mutex_lista_jobs);
 
     // Elimino la estructura del job
     liberar_job(job);

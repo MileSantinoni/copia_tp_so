@@ -16,7 +16,7 @@ double calcular_response_ratio(t_job *job);
 t_job *mayor_response_ratio();
 
 typedef struct {
-    t_job* job;
+    u_int32_t jid;
     t_core* core;
     u_int32_t quantum;
 } t_args_quantum;

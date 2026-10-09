@@ -71,33 +71,27 @@ void despachar_proceso()
 
 void *controlar_quantum(void *arg)
 {
-
     t_args_quantum *datos = (t_args_quantum *)arg;
-
-    // Espero el quentum indicado. Multiplico poor 1000 porque usleep trabaja con microsegundo
     usleep(datos->quantum * 1000);
 
-    // Verifico que el job que esta ejecuntando el core correspondiente sea el mismo y no haya cambiado
-    // Puede ser que el tiempo de ejecucion era menor al quantuum establecido
     pthread_mutex_lock(&mutex_lista_core);
-    if ((datos->core->jid_actual != datos->job->jid) || datos->core->libre)
-    {
+    bool sigue_el_mismo = (datos->core->jid_actual == datos->jid) && !datos->core->libre;
+    pthread_mutex_unlock(&mutex_lista_core);
 
+    if (!sigue_el_mismo)
+    {
         free(datos);
         return NULL;
     }
-    pthread_mutex_unlock(&mutex_lista_core);
-    // Desalojo el proceso del core
 
     t_motivo_desalojo motivo = FIN_QUANTUM;
     t_paquete *paquete = crear_paquete(INTERRUPCION);
-    agregar_a_paquete(paquete, &datos->job->jid, sizeof(datos->job->jid));
+    agregar_a_paquete(paquete, &datos->jid, sizeof(u_int32_t));
     agregar_a_paquete(paquete, &motivo, sizeof(motivo));
     enviar_paquete(paquete, datos->core->socket_interrupt);
     eliminar_paquete(paquete);
 
-    log_info(logger, "## (%u) - Desalojado por fin de quantum", datos->job->jid);
-
+    log_info(logger, "## (%u) - Desalojado por fin de quantum", datos->jid);
     free(datos);
     return NULL;
 }
@@ -106,7 +100,7 @@ void iniciar_quantum(t_job *job_elegido, t_core *core_elegido)
 {
     t_args_quantum *datos = malloc(sizeof(t_args_quantum));
     datos->core = core_elegido;
-    datos->job = job_elegido;
+    datos->jid = job_elegido->jid;
     datos->quantum = rr_quantum;
 
     pthread_t hilo_quantum;
