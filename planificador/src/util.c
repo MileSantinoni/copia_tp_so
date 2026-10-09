@@ -1,6 +1,6 @@
 #include "util.h"
 #include <pthread.h>
-
+#include "cliente.h"
 
 // BUSQUEDA DE LISTAS
 
@@ -170,6 +170,13 @@ void finalizar_job(t_job *job, char *motivo, u_int32_t id_core){
     pthread_mutex_lock(&mutex_lista_jobs);
     list_remove_element(lista_jobs, job);
     pthread_mutex_unlock(&mutex_lista_jobs);
+
+    // le aviso a la Placa para que libere las instrucciones del Job
+    t_paquete *paquete = crear_paquete(FINALIZAR_JOB);
+    uint32_t jid_finalizado = job->jid;
+    agregar_a_paquete(paquete, &jid_finalizado, sizeof(uint32_t));
+    enviar_paquete(paquete, socket_placa);
+    eliminar_paquete(paquete);
 
     // Elimino la estructura del job
     liberar_job(job);
