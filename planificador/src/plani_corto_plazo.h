@@ -17,7 +17,9 @@ t_job *mayor_response_ratio();
 
 typedef struct {
     u_int32_t jid;
-    t_core* core;
+    t_core* core;// si el Core se desconecta mientras corre el quantum, este
+                // puntero queda apuntando a memoria liberada. Guardar id_core y
+                // buscarlo con buscar_core_por_id al despertar.
     u_int32_t quantum;
 } t_args_quantum;
 
