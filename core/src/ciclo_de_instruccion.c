@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <errno.h>
+#include <utils/util.h>
 
 #include "core.h"
 #include "conexiones.h"
@@ -103,12 +104,12 @@ void ciclo_de_instruccion(int socket_dispatch, int socket_placa, uint32_t jid)
         // chequeamos interrupt
         
         if (tomar_interrupcion_para_jid(jid, &motivo)) {
-            log_info(logger, "## Interrupción válida para JID: %u - Motivo: %d", jid, motivo);
+            log_info(logger, "## Interrupción válida para JID: %u - Motivo: %s", jid, motivo_de_desalojo_a_string(motivo));
 
 
             // devuelvo el contexto actualizado al planificador por desalojo
             // TODO revisar si acá iría un envio con motivo 
-            enviar_contexto(socket_dispatch, DESALOJAR_JOB, jid, &registros_cpu);
+            enviar_desalojo(socket_dispatch, jid, &registros_cpu, motivo);
             ejecutando = 0;
         }
         

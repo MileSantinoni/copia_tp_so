@@ -1,20 +1,23 @@
 #include <utils/comunicacion.h>
 #include <utils/protocolo.h>
 
-void crear_buffer(t_paquete *paquete){
+void crear_buffer(t_paquete *paquete)
+{
 	paquete->buffer = malloc(sizeof(t_buffer));
 	paquete->buffer->size = 0;
 	paquete->buffer->stream = NULL;
 }
 
-t_paquete *crear_paquete(op_code codigo_operacion){
+t_paquete *crear_paquete(op_code codigo_operacion)
+{
 	t_paquete *paquete = malloc(sizeof(t_paquete));
 	paquete->codigo_operacion = codigo_operacion;
 	crear_buffer(paquete);
 	return paquete;
 }
 
-void agregar_a_paquete(t_paquete *paquete, void *valor, int tamanio){
+void agregar_a_paquete(t_paquete *paquete, void *valor, int tamanio)
+{
 	paquete->buffer->stream = realloc(paquete->buffer->stream, paquete->buffer->size + tamanio + sizeof(int));
 
 	memcpy(paquete->buffer->stream + paquete->buffer->size, &tamanio, sizeof(int));
@@ -23,7 +26,8 @@ void agregar_a_paquete(t_paquete *paquete, void *valor, int tamanio){
 	paquete->buffer->size += tamanio + sizeof(int);
 }
 
-void *serializar_paquete(t_paquete *paquete, int bytes){
+void *serializar_paquete(t_paquete *paquete, int bytes)
+{
 	void *magic = malloc(bytes);
 	int desplazamiento = 0;
 
@@ -37,7 +41,8 @@ void *serializar_paquete(t_paquete *paquete, int bytes){
 	return magic;
 }
 
-void enviar_paquete(t_paquete *paquete, int socket_cliente){
+void enviar_paquete(t_paquete *paquete, int socket_cliente)
+{
 	int bytes = paquete->buffer->size + 2 * sizeof(int);
 	void *a_enviar = serializar_paquete(paquete, bytes);
 
@@ -46,13 +51,15 @@ void enviar_paquete(t_paquete *paquete, int socket_cliente){
 	free(a_enviar);
 }
 
-void eliminar_paquete(t_paquete *paquete){
+void eliminar_paquete(t_paquete *paquete)
+{
 	free(paquete->buffer->stream);
 	free(paquete->buffer);
 	free(paquete);
 }
 
-void enviar_mensaje(char *mensaje, int socket_cliente){
+void enviar_mensaje(char *mensaje, int socket_cliente)
+{
 	t_paquete *paquete = malloc(sizeof(t_paquete));
 
 	paquete->codigo_operacion = MENSAJE;
@@ -71,7 +78,8 @@ void enviar_mensaje(char *mensaje, int socket_cliente){
 	eliminar_paquete(paquete);
 }
 
-void *recibir_buffer(int *size, int socket_cliente){
+void *recibir_buffer(int *size, int socket_cliente)
+{
 	void *buffer;
 
 	recv(socket_cliente, size, sizeof(int), MSG_WAITALL);
@@ -81,7 +89,8 @@ void *recibir_buffer(int *size, int socket_cliente){
 	return buffer;
 }
 
-t_list *recibir_paquete(int socket_cliente){
+t_list *recibir_paquete(int socket_cliente)
+{
 	int size;
 	int desplazamiento = 0;
 	void *buffer;
@@ -104,7 +113,8 @@ t_list *recibir_paquete(int socket_cliente){
 }
 
 // Se usaria dentro del case de MENSAJE
-void recibir_mensaje(int socket_cliente){
+void recibir_mensaje(int socket_cliente)
+{
 
 	/*int cod_op = recibir_operacion(socket_cliente);
 
@@ -122,7 +132,8 @@ void recibir_mensaje(int socket_cliente){
 	free(buffer);
 }
 
-int recibir_operacion(int socket_cliente){
+int recibir_operacion(int socket_cliente)
+{
 	int cod_op;
 	if (recv(socket_cliente, &cod_op, sizeof(int), MSG_WAITALL) > 0) // el recv es bloqueante
 		return cod_op;
@@ -133,7 +144,8 @@ int recibir_operacion(int socket_cliente){
 	}
 }
 
-char *recibir_nombre(int socket_cliente){
+char *recibir_nombre(int socket_cliente)
+{
 	int tamanio;
 	if (recv(socket_cliente, &tamanio, sizeof(int), MSG_WAITALL) <= 0)
 	{
@@ -144,38 +156,41 @@ char *recibir_nombre(int socket_cliente){
 	return nombre;
 }
 
-void saludar(char* quien)
+void saludar(char *quien)
 {
-    printf("Hola %s\n", quien);
+	printf("Hola %s\n", quien);
 }
 
-// funciones para el check 2 
+// funciones para el check 2
 
-void enviar_contexto (int socket_destino, op_code codigo, uint32_t jid, t_registros * registros ){ // uint_32 jid, sirve como identificador de cada proceso 
-  t_paquete * paquete = crear_paquete(codigo);
+void enviar_contexto(int socket_destino, op_code codigo, uint32_t jid, t_registros *registros)
+{ // uint_32 jid, sirve como identificador de cada proceso
+	t_paquete *paquete = crear_paquete(codigo);
 
-  // Empaquetamos id del proceso
-  agregar_a_paquete (paquete, &jid, sizeof(uint32_t));
- 
-  // Empaquetamos el bloque con los 14 registros definidos en t_registros
-  agregar_a_paquete(paquete, registros, sizeof(t_registros));
+	// Empaquetamos id del proceso
+	agregar_a_paquete(paquete, &jid, sizeof(uint32_t));
 
-  // serializar y enviar por red
-  enviar_paquete(paquete, socket_destino);
+	// Empaquetamos el bloque con los 14 registros definidos en t_registros
+	agregar_a_paquete(paquete, registros, sizeof(t_registros));
 
-  // liberamos memoria, en este caso del paquete 
-  eliminar_paquete(paquete);
-} 
+	// serializar y enviar por red
+	enviar_paquete(paquete, socket_destino);
 
-void recibir_contexto (int socket_origen, uint32_t *jid, t_registros * registros){
+	// liberamos memoria, en este caso del paquete
+	eliminar_paquete(paquete);
+}
+
+void recibir_contexto(int socket_origen, uint32_t *jid, t_registros *registros)
+{
+
 	int size;
-	void * buffer = recibir_buffer(&size, socket_origen); // variable vacia para que la funcion la complete con lo que leyo en la red
-	int desplazamiento = 0; // lo utilizo para saber en la posicion exacta de memoria que estoy parado
-	int tamanio_campo; 
+	void *buffer = recibir_buffer(&size, socket_origen); // variable vacia para que la funcion la complete con lo que leyo en la red
+	int desplazamiento = 0;								 // lo utilizo para saber en la posicion exacta de memoria que estoy parado
+	int tamanio_campo;
 
-	//Extraemos el Jid
-	memcpy(&tamanio_campo, buffer + desplazamiento,sizeof(int)); // buffer + desplazamiento calcula direccion de memoria 
-	desplazamiento += sizeof(int); // sumamos la cantidad exacta que acabamos de leer
+	// Extraemos el Jid
+	memcpy(&tamanio_campo, buffer + desplazamiento, sizeof(int)); // buffer + desplazamiento calcula direccion de memoria
+	desplazamiento += sizeof(int);								  // sumamos la cantidad exacta que acabamos de leer
 
 	memcpy(jid, buffer + desplazamiento, sizeof(uint32_t));
 	desplazamiento += sizeof(uint32_t);
@@ -189,23 +204,83 @@ void recibir_contexto (int socket_origen, uint32_t *jid, t_registros * registros
 
 	free(buffer);
 }
-// el core devuelve el job al planificador indicando porque lo devuelve
-// paquete [Jid] [Registro] [Motivo de desalojo]
-void enviar_desalojo(int socket_destino, uint32_t jid, t_registros *registros, t_motivo_desalojo motivo){
+// El Core devuelve el Job al Planificador indicando por que lo devuelve.
+// Paquete: [jid] [registros] [motivo]
+void enviar_desalojo(int socket_destino, uint32_t jid, t_registros *registros, t_motivo_desalojo motivo)
+{
 	t_paquete *paquete = crear_paquete(DESALOJAR_JOB);
-	agregar_a_paquete (paquete, &jid, sizeof(uint32_t));
+
+	agregar_a_paquete(paquete, &jid, sizeof(uint32_t));
 	agregar_a_paquete(paquete, registros, sizeof(t_registros));
 	agregar_a_paquete(paquete, &motivo, sizeof(t_motivo_desalojo));
 
-	enviar_paquete (paquete, socket_destino);
+	enviar_paquete(paquete, socket_destino);
 	eliminar_paquete(paquete);
 }
-// se llama despues de que recibir_operacion() devolvio desalojar job 
-void recibir_desalojo (int socket_origen, uint32_t * jid, t_registros *registros, t_motivo_desalojo *motivo){
-	t_list * valores = recibir_paquete(socket_origen);
-	memcpy(jid, list_get(valores,0), sizeof(uint32_t));
+
+// Se llama DESPUES de que recibir_operacion() devolvio DESALOJAR_JOB
+void recibir_desalojo(int socket_origen, uint32_t *jid, t_registros *registros, t_motivo_desalojo *motivo)
+{
+	t_list *valores = recibir_paquete(socket_origen);
+
+	memcpy(jid, list_get(valores, 0), sizeof(uint32_t));
 	memcpy(registros, list_get(valores, 1), sizeof(t_registros));
 	memcpy(motivo, list_get(valores, 2), sizeof(t_motivo_desalojo));
 
 	list_destroy_and_destroy_elements(valores, free);
+}
+
+// PETICIONES
+
+u_int32_t id_peticion = 0; // variable de id_peticion global para llevar el conteo y que no se repita
+pthread_mutex_t mutex_id_peticion = PTHREAD_MUTEX_INITIALIZER;
+
+u_int32_t siguiente_id_solicitud()
+{
+	pthread_mutex_lock(&mutex_id_peticion);
+	id_peticion++;
+	u_int32_t id = id_peticion;
+	pthread_mutex_unlock(&mutex_id_peticion);
+	return id;
+}
+
+t_list *solicitudes_pendientes;
+pthread_mutex_t mutex_lista_sol_pendientes;
+
+t_solicitud_pendiente *crear_solicitud_pendiente(u_int32_t jid, int operacion)
+{
+
+	t_solicitud_pendiente *solicitud_nueva = malloc(sizeof(t_solicitud_pendiente));
+
+	solicitud_nueva->id_solicitd = siguiente_id_solicitud();
+	solicitud_nueva->jid = jid;
+	solicitud_nueva->operacion = operacion;
+	solicitud_nueva->exito = false;
+	sem_init(&solicitud_nueva->sem_respuesta, 0, 0);
+
+	pthread_mutex_lock(&mutex_lista_sol_pendientes);
+	list_add(solicitudes_pendientes, solicitud_nueva);
+	pthread_mutex_unlock(&mutex_lista_sol_pendientes);
+
+	return solicitud_nueva;
+}
+
+void eliminar_solicitud_pendiente(t_solicitud_pendiente *peticion)
+{
+	sem_destroy(&peticion->sem_respuesta);
+	free(peticion);
+}
+
+t_solicitud_pendiente*  buscar_solicitud_por_id_solicitud(t_list*  solicitudes_pendientes, u_int32_t id){
+
+	for (int i = 0; i < list_size(solicitudes_pendientes); i++)
+    {
+        t_solicitud_pendiente *solicitud_actual = (t_solicitud_pendiente *)list_get(solicitudes_pendientes, i);
+
+        if (solicitud_actual->id_solicitd== id)
+        {
+            return solicitud_actual;
+        }
+    }
+    return NULL;
 }
