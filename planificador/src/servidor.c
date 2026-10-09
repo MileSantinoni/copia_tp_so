@@ -242,31 +242,38 @@ void *atender_core(void *arg)
             u_int32_t pid = *(u_int32_t *)list_get(paquete, 0); // sirve  para las estadisticas
             char *path_job_nuevo = list_get(paquete, 1);
 
+            log_info(logger, "## (%u) - Solicitó syscall: INIT_JOB", jid_solicitante);
+
             t_job *job_nuevo = crear_job();
+            u_int32_t jid_nuevo = job_nuevo->jid;   // lo guardo antes: si falla, el job se libera
 
-            t_solicitud_pendiente *peticion = crear_solicitud_pendiente(job_nuevo->jid, CREAR_JOB);
-
-            enviar_crear_job_a_placa(job_nuevo->jid, path_job_nuevo, peticion->id_solicitd);
-
+            t_solicitud_pendiente *peticion = crear_solicitud_pendiente(jid_nuevo, CREAR_JOB);
+            enviar_crear_job_a_placa(jid_nuevo, path_job_nuevo, peticion->id_solicitd);
             sem_wait(&peticion->sem_respuesta);
 
-            if (peticion->exito)
-            {
-                encolar_new(job_nuevo);
-                eliminar_solicitud_pendiente(peticion);
+            if (peticion->exito){
+                encolar_new(job_nuevo);    
             }
-            else
-            {
-                log_error(logger, "Respuesta sin exito para crear el Job con pid %u en placa", job_nuevo->jid);
+            else{
+                log_error(logger, "Respuesta sin exito para crear el Job con pid %u en placa", jid_nuevo);
 
+                pthread_mutex_lock(&mutex_lista_jobs);
+                list_remove_element(lista_jobs, job_nuevo);
                 liberar_job(job_nuevo);
-                eliminar_solicitud_pendiente(peticion);
-                finalizar_planificador();
                 exit(EXIT_FAILURE);
             }
+            eliminar_solicitud_pendiente(peticion);
+            list_destroy_and_destroy_elements(paquete, free);
+            
+            // INIT_JOB no bloquea: el Core espera esta respuesta y sigue ejecutando
+            t_paquete *respuesta = crear_paquete(RESPUESTA_SYSCALL);
+            agregar_a_paquete(respuesta, &jid_nuevo, sizeof(u_int32_t));
+            enviar_paquete(respuesta, core->socket_dispatch);
+            eliminar_paquete(respuesta);
+            break;
         }
 
-        default:
+            default:
             log_warning(logger, "Operación desconocido desde CORE: %d", codigo_operacion);
             close(core->socket_dispatch);
             return NULL;
