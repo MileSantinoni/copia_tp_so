@@ -112,12 +112,11 @@ int recibir_core_id(int socket)
 
 char *motivo_de_desalojo_a_string(t_motivo_desalojo motivo)
 {
-
-    if (motivo == FIN_QUANTUM)
-    {
-        return "FIN_QUANTUM";
+    switch(motivo){
+        case FIN_QUANTUM: return "FIN_QUANTUM";
+        case SYSCALL_BLOQUEANTE: return "SYSCALL_BLOQUEANTE";
+        default :   return "DESCONOCIDO";
     }
-    return NULL;
 }
 
 void enviar_tipo_conexion_core(int socket, int tipo_conexion)

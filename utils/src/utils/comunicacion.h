@@ -61,5 +61,7 @@ char *recibir_nombre(int socket_cliente);
 
 void enviar_contexto(int socket_destino, op_code codigo, uint32_t jid, t_registros* registros);
 void recibir_contexto(int socket_origen, uint32_t* jid, t_registros* registros);
+void enviar_desalojo(int socket_destino, uint32_t jid, t_registros* registros, t_motivo_desalojo motivo);
+void recibir_desalojo(int socket_origen, uint32_t* jid, t_registros* registros, t_motivo_desalojo* motivo);
 
 #endif
