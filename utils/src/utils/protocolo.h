@@ -27,6 +27,8 @@ typedef enum
     // CORE <--> PLACA
     FETCH_INSTRUCCION, // Core le pide la instruccion a la placa
     RESPUESTA_INSTRUCCION, // placa responde al core
+    RESPUESTA_SYSCALL,
+    
   
 } op_code;
 

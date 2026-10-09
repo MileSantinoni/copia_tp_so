@@ -198,7 +198,31 @@ uint32_t obtener_valor_operando(char *operando)
 
     return (uint32_t)strtoul(operando, NULL, 10);
 }
+// INIT_JOB es una syscall no bloqueante: el Core se la pide al Planificador,
+// espera la respuesta y sigue ejecutando el mismo Job (no devuelve el contexto).
+static void syscall_init_job(uint32_t jid, char *archivo){
+    // paso 1 le pido al planificador que cree el job [jid que la pide][nombre del archivo]
+    t_paquete * paquete = crear_paquete(INIT_JOB);
+    agregar_a_paquete(paquete, &jid, sizeof(uint32_t));
+    agregar_a_paquete (paquete, archivo, strlen(archivo)+1);
+    enviar_paquete(paquete, socket_dispatch);
+    eliminar_paquete(paquete);
 
+
+    // 2. Espero la respuesta, recibir_operacion es bloqueante: el Core se queda
+    //    acá hasta que el Planificador termine de crear el Job.
+    int cod_op = recibir_operacion(socket_dispatch);
+    if (cod_op != RESPUESTA_SYSCALL)
+    {
+        log_error(logger, "## JID: %u - Se esperaba RESPUESTA_SYSCALL y llegó op_code %d", jid, cod_op);
+        return;
+    }
+     // 3 Leo el paquete de la respuesta para dejar el socket limpio
+    t_list *respuesta = recibir_paquete(socket_dispatch);
+    list_destroy_and_destroy_elements(respuesta, free);
+
+
+}
 t_resultado_ejecucion ejecutar_instruccion(
     t_instruccion *instruccion,
     uint32_t jid)
@@ -328,6 +352,17 @@ t_resultado_ejecucion ejecutar_instruccion(
                 destino);
         }
 
+        return EJECUCION_CONTINUA;
+    }
+    if (strcmp(instruccion->nombre, "INIT_JOB") == 0)
+    {
+        if (instruccion->cantidad_parametros != 1)
+        {
+            log_error(logger, "INIT_JOB requiere un parámetro");
+            return EJECUCION_CONTINUA;
+        }
+
+        syscall_init_job(jid, instruccion->parametros[0]);
         return EJECUCION_CONTINUA;
     }
 
