@@ -10,14 +10,17 @@
 #include <utils/comunicacion.h>
 #include <utils/protocolo.h>
 
-
-
 // crea un job con el contexto en 0 y lo suma a la lista general de jobs
-t_job *crear_job(uint32_t jid){
+t_job *crear_job()
+{
     t_job *job = malloc(sizeof(t_job));
-    job->jid = jid;
-    job->estado = NEW; 
-    job->estimacion_proxima_rafaga=estimacion_inicial;
+
+    pthread_mutex_lock(&mutex_contador_pid);
+    job->jid = contador_pid;
+    pthread_mutex_unlock(&mutex_contador_pid);
+    
+    job->estado = NEW;
+    job->estimacion_proxima_rafaga = estimacion_inicial;
 
     job->contexto = malloc(sizeof(t_registros));
     memset(job->contexto, 0, sizeof(t_registros)); // todos los registros arrancan en 0
@@ -27,7 +30,11 @@ t_job *crear_job(uint32_t jid){
     // !!!! list_add sin mutex por ahora, ver nota de concurrencia abajo de todo !!!
     pthread_mutex_unlock(&mutex_lista_jobs);
 
-    log_info(logger, "## (%d) Se crea el Job - Estado: NEW", jid);
+    log_info(logger, "## (%d) Se crea el Job - Estado: NEW", job->jid);
+
+    pthread_mutex_lock(&mutex_contador_pid);
+    contador_pid++;
+    pthread_mutex_unlock(&mutex_contador_pid);
 
     return job;
 }
@@ -45,6 +52,7 @@ void enviar_crear_job_a_placa(uint32_t jid, char *nombre_archivo, u_int32_t id_s
     enviar_paquete(paquete, socket_placa);
     eliminar_paquete(paquete);
 }
+
 
 // hilo de planificacion de largo plazo: pasa jobs de NEW a READY
 // respetando el grado maximo de multiprogramacion (semaforo contador)

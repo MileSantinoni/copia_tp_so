@@ -59,6 +59,10 @@ t_list *cola_block; // DEBERIAN SER DISTINTAS COLAS DE BLOQUEO SEGUN EL MOTIVO
 pthread_mutex_t mutex_cola_block;
 sem_t sem_cola_block;
 
+// VARIABLE GLOBAL
+u_int32_t contador_pid = 0; // Para asignar pid a los nuevos proceso 
+pthread_mutex_t mutex_contador_pid;
+
 int main(int argc, char *argv[])
 {
 
@@ -80,9 +84,11 @@ int main(int argc, char *argv[])
 
     obtener_config();
 
+    logger = log_create("planificador.log", "PLANIFICADOR", true, log_level);
+
     if (logger == NULL)
     {
-        printf("Error en la creación el logger");
+        printf("Error en la creación el logger\n");
         exit(EXIT_FAILURE);
     }
 
@@ -118,7 +124,7 @@ int main(int argc, char *argv[])
     log_info(logger, "Algoritmo de planificación:  %s ", algoritmo_planificacion);
 
     // Job inicial: se crea, se le avisa a la Placa, y se encola en NEW
-    t_job *job_inicial = crear_job(0);
+    t_job *job_inicial = crear_job();
 
     t_solicitud_pendiente *peticion = crear_solicitud_pendiente(job_inicial->jid, CREAR_JOB);
 
@@ -154,6 +160,8 @@ void incializar_mutex()
     pthread_mutex_init(&mutex_cola_new, NULL);
     pthread_mutex_init(&mutex_lista_jobs, NULL);
     pthread_mutex_init(&mutex_lista_sol_pendientes, NULL);
+     pthread_mutex_init(&mutex_contador_pid, NULL);
+
 }
 
 void incializar_semaforos()
@@ -186,7 +194,7 @@ void finalizar_planificador()
 void obtener_config()
 {
     log_level = log_level_from_string(config_get_string_value(config, "LOG_LEVEL"));
-    logger = log_create("planificador.log", "PLANIFICADOR", true, log_level);   // ← NUEVA
+    logger = log_create("planificador.log", "PLANIFICADOR", true, log_level); 
     algoritmo_planificacion = config_get_string_value(config, "ALGORITMO_PLANIFICACION");
 
     rr_quantum = config_get_int_value(config, "RR_QUANTUM");

@@ -16,7 +16,7 @@ typedef enum
 
     // PLANI <--> PLACA
     CREAR_JOB, //planificador crea job y se lo manda a la placa
-    
+    INIT_JOB,
     // PLANI <--> CORE
     //DEVOLVER_CONTEXTO,
     DESPACHAR_JOB, // planificador despacha el job al core

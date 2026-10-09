@@ -1,6 +1,7 @@
 #include "util.h"
 #include <pthread.h>
 
+
 // BUSQUEDA DE LISTAS
 
 t_core *obtener_core_libre()
@@ -147,6 +148,8 @@ void pasar_a_exec(t_job *job)
     job->estado = EXEC;
 }
 
+
+
 // pasa un job a EXIT y libera un cupo de multiprogramacion
 // (esto lo tiene que llamar quien procese el FINALIZAR_JOB que manda el Core, ver nota de coordinacion abajo)
 void finalizar_job(t_job *job, char *motivo, u_int32_t id_core){
@@ -191,15 +194,15 @@ void actualizar_contexto(u_int32_t jid, t_registros *registros)
     pthread_mutex_unlock(&mutex_lista_jobs);
 }
 
-
-void actualizar_estimacion_prox_rafaga(t_job *job){
+void actualizar_estimacion_prox_rafaga(t_job *job)
+{
 
     struct timespec tiempo_actual;
     clock_gettime(CLOCK_MONOTONIC, &tiempo_actual);
 
-    double segundos= tiempo_actual.tv_sec - job->tiempo_inicio_ready.tv_sec;
+    double segundos = tiempo_actual.tv_sec - job->tiempo_inicio_ready.tv_sec;
     double nanosegundos = tiempo_actual.tv_nsec - job->tiempo_inicio_ready.tv_nsec;
 
-    double rafaga_real = segundos *1000.0  + nanosegundos/1000000.0;
-    job->estimacion_proxima_rafaga=hrrn_alfa*rafaga_real+(1.0-hrrn_alfa)*job->estimacion_proxima_rafaga;
+    double rafaga_real = segundos * 1000.0 + nanosegundos / 1000000.0;
+    job->estimacion_proxima_rafaga = hrrn_alfa * rafaga_real + (1.0 - hrrn_alfa) * job->estimacion_proxima_rafaga;
 }

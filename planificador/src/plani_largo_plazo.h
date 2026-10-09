@@ -3,7 +3,6 @@
 
 #include "planificador.h"
 
-t_job *crear_job(uint32_t jid);
 void encolar_new(t_job *job);
 void enviar_crear_job_a_placa(uint32_t jid, char *nombre_archivo, u_int32_t id_solicitud);
 void *planificador_largo_plazo(void *arg);
