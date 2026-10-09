@@ -125,12 +125,8 @@ void * escuchar_interrupt(void *arg){
 
             pthread_mutex_unlock(&mutex_interrupcion);
 
-            log_info(
-                logger,
-                "## Interrupción recibida - JID: %u - Motivo: %d",
-                jid_interrumpido,
-                motivo
-            );
+            log_info(logger,"## Interrupción recibida");
+            log_debug(logger, "## Interrupción para JID: %u - Motivo: %s",jid_interrumpido, motivo_de_desalojo_a_string(motivo)); // lleva el detalle 
 
             list_destroy_and_destroy_elements(valores, free);
 
