@@ -186,6 +186,7 @@ void finalizar_planificador()
 void obtener_config()
 {
     log_level = log_level_from_string(config_get_string_value(config, "LOG_LEVEL"));
+    logger = log_create("planificador.log", "PLANIFICADOR", true, log_level); 
     algoritmo_planificacion = config_get_string_value(config, "ALGORITMO_PLANIFICACION");
 
     rr_quantum = config_get_int_value(config, "RR_QUANTUM");
