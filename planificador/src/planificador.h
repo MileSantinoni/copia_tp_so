@@ -10,7 +10,7 @@
 
 extern t_log *logger;
 extern t_config *config;
-//extern t_log_level log_level;
+extern t_log_level log_level;
 
 extern char *algoritmo_planificacion;
 

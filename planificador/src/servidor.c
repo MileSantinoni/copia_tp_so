@@ -181,7 +181,7 @@ void *atender_core(void *arg)
             actualizar_contexto(jid, &registros);
             pthread_mutex_lock(&mutex_lista_jobs);
             t_job *job_encontrado = buscar_job_por_jid(lista_jobs, jid);
-            
+
             pthread_mutex_unlock(&mutex_lista_jobs);
 
             if (job_encontrado ==NULL){
@@ -214,6 +214,33 @@ void *atender_core(void *arg)
             pthread_mutex_unlock(&mutex_lista_core);
             sem_post(&sem_cores);
             break;
+        }
+        case INIT_JOB:
+        {
+            t_paquete* paquete = recibir_paquete()
+            u_int32_t contador_pid;
+            crear_job(contador_pid);
+
+            t_solicitud_pendiente *peticion = crear_solicitud_pendiente(job_inicial->jid, CREAR_JOB);
+
+            enviar_crear_job_a_placa(0, path_job_inicial, peticion->id_solicitd);
+
+            sem_wait(&peticion->sem_respuesta);
+
+            if (peticion->exito)
+            {
+                encolar_new(job_inicial);
+                eliminar_solicitud_pendiente(peticion);
+            }
+            else
+            {
+                log_error(logger, "Respuesta sin exito para crear el Job con pid %u en placa", job_inicial->jid);
+
+                liberar_job(job_inicial);
+                eliminar_solicitud_pendiente(peticion);
+                finalizar_planificador();
+                exit(EXIT_FAILURE);
+            }
         }
         case FINALIZAR_JOB:
         {

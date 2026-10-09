@@ -3,6 +3,9 @@
 
 #include "planificador.h"
 
+// CREAR
+t_job *crear_job(uint32_t jid);
+
 // BUSQUEDA DE LISTAS
 
 t_core *obtener_core_libre();
