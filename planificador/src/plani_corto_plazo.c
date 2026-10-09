@@ -91,7 +91,6 @@ void *controlar_quantum(void *arg)
     enviar_paquete(paquete, datos->core->socket_interrupt);
     eliminar_paquete(paquete);
 
-    log_info(logger, "## (%u) - Desalojado por fin de quantum", datos->jid);
     free(datos);
     return NULL;
 }

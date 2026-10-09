@@ -195,6 +195,7 @@ void *atender_core(void *arg)
             {
             case FIN_QUANTUM:
             { // RR se le acabo el turno, pero no termino por lo que vuelve a ready
+            log_info(logger, "## (%u) - Desalojado por fin de quantum", jid);
                 pasar_a_ready(job_encontrado);
                 break;
             }
