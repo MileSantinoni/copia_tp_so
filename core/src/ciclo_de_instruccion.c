@@ -27,20 +27,7 @@ void ciclo_de_instruccion(int socket_dispatch, int socket_placa, uint32_t jid)
         enviar_paquete(paquete_fetch, socket_placa);
         eliminar_paquete(paquete_fetch);
 
-        // esperamos la respuesta de la placa
-        /*int cod_op = recibir_operacion(socket_placa);
-
-        if (cod_op == -1) {
-            log_error(logger, "La Placa se desconectó");
-            break;
-        }
-
-        if (cod_op != RESPUESTA_INSTRUCCION)
-        {
-            log_error(logger, "Error al recibir instruccion de Placa. Codigo recibido: %d", cod_op);
-            break;
-        }*/
-        // recibimos el string de la instruccion
+        
         int cod_op = recibir_operacion(socket_placa);
 
         if (cod_op != MENSAJE)
@@ -58,11 +45,7 @@ void ciclo_de_instruccion(int socket_dispatch, int socket_placa, uint32_t jid)
             break;
         }
 
-        /*if (instruccion == NULL) {
-            log_error(logger, "La Placa devolvió una instrucción nula");
-            break;
-        }*/
-
+    
         log_info(logger, "## Instruccion recibida: %s", instruccion);
 
         //  fase decode y execute
@@ -110,33 +93,25 @@ void ciclo_de_instruccion(int socket_dispatch, int socket_placa, uint32_t jid)
         // si JNZ esta tomado el PC cambia al destino y no incrementa
         // sino PC sigue igual e incrementa en 1
 
+        t_motivo_desalojo motivo;
+
         if (registros_cpu.PC == pc_anterior)
         {
             registros_cpu.PC++;
         }
 
-        // verificar_interrupcion(socket_dispatch);
-
-        // registros_cpu.PC++; // incremento el pc para que apunte a la siguiente instruccion
-
-        // free(instruccion);
-
         // chequeamos interrupt
-        pthread_mutex_lock(&mutex_interrupcion);
-        if (hay_interrupcion)
-        {
-            hay_interrupcion = 0;
-            ejecutando = 0;
-            pthread_mutex_unlock(&mutex_interrupcion);
-            log_info(logger, "## Interrupción detectada. Desalojando proceso JID: %d...", jid);
+        
+        if (tomar_interrupcion_para_jid(jid, &motivo)) {
+            log_info(logger, "## Interrupción válida para JID: %u - Motivo: %d", jid, motivo);
+
 
             // devuelvo el contexto actualizado al planificador por desalojo
+            // TODO revisar si acá iría un envio con motivo 
             enviar_contexto(socket_dispatch, DESALOJAR_JOB, jid, &registros_cpu);
+            ejecutando = 0;
         }
-        else
-        {
-            pthread_mutex_unlock(&mutex_interrupcion);
-        }
+        
     }
 }
 
@@ -362,90 +337,4 @@ t_resultado_ejecucion ejecutar_instruccion(
         instruccion->nombre);
 
     return EJECUCION_CONTINUA;
-}
-
-void verificar_interrupcion(int socket_planificador)
-{
-    fd_set sockets;
-    struct timeval timeout;
-
-    FD_ZERO(&sockets);
-    FD_SET(socket_planificador, &sockets);
-
-    timeout.tv_sec = 0;
-    timeout.tv_usec = 0;
-
-    int resultado = select(
-        socket_planificador + 1,
-        &sockets,
-        NULL,
-        NULL,
-        &timeout);
-
-    if (resultado == -1)
-    {
-        if (errno == EINTR)
-            return;
-
-        log_error(logger, "Error en select() al verificar interrupción");
-        return;
-    }
-
-    if (resultado > 0 &&
-        FD_ISSET(socket_planificador, &sockets))
-    {
-        int cod_op = recibir_operacion(socket_planificador);
-
-        if (cod_op == -1)
-        {
-            log_error(logger, "El Planificador se desconectó");
-            return;
-        }
-
-        if (cod_op == INTERRUPCION)
-        {
-            int size;
-            char *buffer = recibir_buffer(
-                &size,
-                socket_planificador);
-
-            if (buffer == NULL)
-            {
-                log_error(
-                    logger,
-                    "No se pudo recibir el contenido de la interrupción");
-                return;
-            }
-
-            uint32_t jid_interrumpido;
-            t_motivo_desalojo motivo;
-
-            memcpy(
-                &jid_interrumpido,
-                buffer,
-                sizeof(uint32_t));
-
-            memcpy(
-                &motivo,
-                buffer + sizeof(uint32_t),
-                sizeof(t_motivo_desalojo));
-
-            free(buffer);
-
-            log_info(
-                logger,
-                "## Interrupción recibida - JID: %u - Motivo: %d",
-                jid_interrumpido,
-                motivo);
-
-            hay_interrupcion = 1;
-        }
-        else
-        {
-            log_warning(
-                logger,
-                "Operación inesperada durante ejecución: %d",
-                cod_op);
-        }
-    }
 }
