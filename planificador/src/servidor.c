@@ -174,22 +174,23 @@ void *atender_core(void *arg)
         case DESALOJAR_JOB:
         {
             u_int32_t jid;
-            t_registros registros;
-            recibir_contexto(core->socket_dispatch, &jid, &registros);
+            t_registros registros;    
+            t_motivo_desalojo motivo;
+            recibir_desalojo(core->socket_dispatch,&jid, &registros, &motivo);
 
             actualizar_contexto(jid, &registros);
+
             pthread_mutex_lock(&mutex_lista_jobs);
             t_job *job_encontrado = buscar_job_por_jid(lista_jobs, jid);
             if (job_encontrado == NULL)
             {
                 log_error(logger, "Desalojo de un Job inexistente - JID: %u", jid);
-                  pthread_mutex_unlock(&mutex_lista_jobs);
+                pthread_mutex_unlock(&mutex_lista_jobs);
                 break;
             }
             pthread_mutex_unlock(&mutex_lista_jobs);
 
-            // FALTA RECIBIR EL MOTIVO DE DESALOJAR JOB
-            op_code motivo;
+        
             switch (motivo)
             {
             case SYSCALL_BLOQUEANTE:

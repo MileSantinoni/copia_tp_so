@@ -84,9 +84,11 @@ int main(int argc, char *argv[])
 
     obtener_config();
 
+    logger = log_create("planificador.log", "PLANIFICADOR", true, log_level);
+
     if (logger == NULL)
     {
-        printf("Error en la creación el logger");
+        printf("Error en la creación el logger\n");
         exit(EXIT_FAILURE);
     }
 
