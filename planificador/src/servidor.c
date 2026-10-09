@@ -1,6 +1,7 @@
 #include "servidor.h"
 #include "planificador.h"
 #include "util.h"
+#include "plani_largo_plazo.h"
 
 #include <stdlib.h>
 #include <pthread.h>
@@ -13,6 +14,8 @@
 #include <utils/comunicacion.h>
 #include <utils/protocolo.h>
 #include <utils/util.h>
+
+
 
 void *iniciar_conexion_como_servidor(void *arg)
 {
@@ -172,75 +175,47 @@ void *atender_core(void *arg)
         {
             u_int32_t jid;
             t_registros registros;
-            t_motivo_desalojo motivo;
+            recibir_contexto(core->socket_dispatch, &jid, &registros);
 
-            // ahora el paquete trae 3 campos: jid registros y respectivo motivo
-             recibir_desalojo (core -> socket_dispatch, &jid, &registros, &motivo);
-
-            // guardo el contexto sea cual sea el motivo
             actualizar_contexto(jid, &registros);
             pthread_mutex_lock(&mutex_lista_jobs);
             t_job *job_encontrado = buscar_job_por_jid(lista_jobs, jid);
-
+            if (job_encontrado == NULL)
+            {
+                log_error(logger, "Desalojo de un Job inexistente - JID: %u", jid);
+                  pthread_mutex_unlock(&mutex_lista_jobs);
+                break;
+            }
             pthread_mutex_unlock(&mutex_lista_jobs);
 
-            if (job_encontrado ==NULL){
-                  log_error(logger, "Desalojo de un Job inexistente - JID: %u", jid);
-                break;
-            }
-
-        
-            // el motivo decide a que estado ira el job
+            // FALTA RECIBIR EL MOTIVO DE DESALOJAR JOB
+            op_code motivo;
             switch (motivo)
             {
-            case FIN_QUANTUM:
-            { // RR se le acabo el turno, pero no termino por lo que vuelve a ready
-                pasar_a_ready(job_encontrado);
+            case SYSCALL_BLOQUEANTE:
+            {
+                actualizar_estimacion_prox_rafaga(job_encontrado);
+                // falta completar
                 break;
             }
-            case SYSCALL_BLOQUEANTE:
-            { // termino su rafaga de cpu, se recalcula la estimacion HRRN
-              actualizar_estimacion_prox_rafaga(job_encontrado);
+            case FIN_QUANTUM:
+            {
+                pasar_a_ready(job_encontrado);
 
-              break;
+                // Libero el core
+                pthread_mutex_lock(&mutex_lista_core);
+                t_core *core_actual = buscar_core_por_id(lista_cores, id_core);
+                core_actual->libre = true;
+                pthread_mutex_unlock(&mutex_lista_core);
+
+                sem_post(&sem_cores);
             }
             default:
-                log_error(logger, "## (%u) - Motivo de desalojo desconocido: %d", jid, motivo);
+                log_error(logger, "El motivo %i no es válido", motivo);
                 break;
             }
-            // en cualquier caso el Core nos devolvio el Job, asi que queda libre
-            pthread_mutex_lock(&mutex_lista_core);
-            core->libre = true;
-            pthread_mutex_unlock(&mutex_lista_core);
-            sem_post(&sem_cores);
+
             break;
-        }
-        case INIT_JOB:
-        {
-            t_paquete* paquete = recibir_paquete()
-            u_int32_t contador_pid;
-            crear_job(contador_pid);
-
-            t_solicitud_pendiente *peticion = crear_solicitud_pendiente(job_inicial->jid, CREAR_JOB);
-
-            enviar_crear_job_a_placa(0, path_job_inicial, peticion->id_solicitd);
-
-            sem_wait(&peticion->sem_respuesta);
-
-            if (peticion->exito)
-            {
-                encolar_new(job_inicial);
-                eliminar_solicitud_pendiente(peticion);
-            }
-            else
-            {
-                log_error(logger, "Respuesta sin exito para crear el Job con pid %u en placa", job_inicial->jid);
-
-                liberar_job(job_inicial);
-                eliminar_solicitud_pendiente(peticion);
-                finalizar_planificador();
-                exit(EXIT_FAILURE);
-            }
         }
         case FINALIZAR_JOB:
         {
@@ -259,6 +234,36 @@ void *atender_core(void *arg)
             finalizar_job(job_encontrado, "EXIT", id_core);
 
             break;
+        }
+        // SYSCALLS
+        case INIT_JOB:
+        {
+            t_list *paquete = recibir_paquete(core->socket_dispatch);
+            u_int32_t pid = *(u_int32_t *)list_get(paquete, 0); // sirve  para las estadisticas
+            char *path_job_nuevo = list_get(paquete, 1);
+
+            t_job *job_nuevo = crear_job();
+
+            t_solicitud_pendiente *peticion = crear_solicitud_pendiente(job_nuevo->jid, CREAR_JOB);
+
+            enviar_crear_job_a_placa(job_nuevo->jid, path_job_nuevo, peticion->id_solicitd);
+
+            sem_wait(&peticion->sem_respuesta);
+
+            if (peticion->exito)
+            {
+                encolar_new(job_nuevo);
+                eliminar_solicitud_pendiente(peticion);
+            }
+            else
+            {
+                log_error(logger, "Respuesta sin exito para crear el Job con pid %u en placa", job_nuevo->jid);
+
+                liberar_job(job_nuevo);
+                eliminar_solicitud_pendiente(peticion);
+                finalizar_planificador();
+                exit(EXIT_FAILURE);
+            }
         }
 
         default:

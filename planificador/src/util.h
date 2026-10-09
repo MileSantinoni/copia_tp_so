@@ -4,7 +4,7 @@
 #include "planificador.h"
 
 // CREAR
-t_job *crear_job(uint32_t jid);
+t_job *crear_job();
 
 // BUSQUEDA DE LISTAS
 

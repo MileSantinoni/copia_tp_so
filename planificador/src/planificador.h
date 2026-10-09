@@ -85,8 +85,10 @@ extern sem_t sem_cola_block;
 
 
 // MULTIPROGRAMACIÓN
-
 extern sem_t sem_cupo_multiprogramacion;
 
+// 
+extern u_int32_t contador_pid;
+extern pthread_mutex_t mutex_contador_pid;
 
 #endif
