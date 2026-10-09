@@ -242,7 +242,7 @@ void *atender_core(void *arg)
             u_int32_t pid = *(u_int32_t *)list_get(paquete, 0); // sirve  para las estadisticas
             char *path_job_nuevo = list_get(paquete, 1);
 
-            log_info(logger, "## (%u) - Solicitó syscall: INIT_JOB", jid_solicitante);
+            log_info(logger, "## (%u) - Solicitó syscall: INIT_JOB", pid);
 
             t_job *job_nuevo = crear_job();
             u_int32_t jid_nuevo = job_nuevo->jid;   // lo guardo antes: si falla, el job se libera

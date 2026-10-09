@@ -16,7 +16,7 @@ t_job *crear_job()
     t_job *job = malloc(sizeof(t_job));
 
     pthread_mutex_lock(&mutex_contador_pid);
-    job->jid = contador_pid;
+    job->jid = contador_pid++; // asigno el pid y lo incremento para el proximo job
     pthread_mutex_unlock(&mutex_contador_pid);
     
     job->estado = NEW;
@@ -27,14 +27,9 @@ t_job *crear_job()
 
     pthread_mutex_lock(&mutex_lista_jobs);
     list_add(lista_jobs, job);
-    // !!!! list_add sin mutex por ahora, ver nota de concurrencia abajo de todo !!!
     pthread_mutex_unlock(&mutex_lista_jobs);
 
-    log_info(logger, "## (%d) Se crea el Job - Estado: NEW", job->jid);
-
-    pthread_mutex_lock(&mutex_contador_pid);
-    contador_pid++;
-    pthread_mutex_unlock(&mutex_contador_pid);
+    log_info(logger, "## (%u) Se crea el Job - Estado: NEW", job->jid);
 
     return job;
 }

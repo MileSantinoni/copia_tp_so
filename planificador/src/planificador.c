@@ -84,7 +84,6 @@ int main(int argc, char *argv[])
 
     obtener_config();
 
-    logger = log_create("planificador.log", "PLANIFICADOR", true, log_level);
 
     if (logger == NULL)
     {

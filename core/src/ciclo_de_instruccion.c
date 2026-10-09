@@ -3,6 +3,7 @@
 #include <string.h>
 #include <errno.h>
 #include <utils/util.h>
+#include <commons/string.h>
 
 #include "core.h"
 #include "conexiones.h"
@@ -20,7 +21,7 @@ void ciclo_de_instruccion(int socket_dispatch, int socket_placa, uint32_t jid)
         // fase fetch
         uint32_t pc_anterior = registros_cpu.PC;
 
-        log_info(logger, "## FETCH - PID: %d - PC: %d", jid, registros_cpu.PC);
+        log_info(logger, "## JID: %u - FETCH - Program Counter: %u", jid, registros_cpu.PC);
         // pido la instruccion a placa indicando el jid y el PC actual
         t_paquete *paquete_fetch = crear_paquete(FETCH_INSTRUCCION); // crea la estructura del paquete en memoria dinamica
         agregar_a_paquete(paquete_fetch, &jid, sizeof(uint32_t));    // copia el dato real dentro del paquete y actualiza el tamaño total
@@ -232,12 +233,22 @@ t_resultado_ejecucion ejecutar_instruccion(
         return EJECUCION_CONTINUA;
     }
 
-    log_info(
-        logger,
-        "## JID: %u - Ejecutando: %s",
-        jid,
-        instruccion->nombre);
+    // armo el string de parámetros separados por espacio
+    char *parametros = string_new();
+    for (int i = 0; i < instruccion->cantidad_parametros; i++)
+    {
+        string_append(&parametros, instruccion->parametros[i]);
+        if (i < instruccion->cantidad_parametros - 1)
+            string_append(&parametros, " ");
+    }
 
+    if (instruccion->cantidad_parametros > 0)
+        log_info(logger, "## JID: %u - Ejecutando: %s - %s", jid, instruccion->nombre, parametros);
+    else
+        log_info(logger, "## JID: %u - Ejecutando: %s", jid, instruccion->nombre);
+
+    free(parametros);
+    
     if (strcmp(instruccion->nombre, "NOOP") == 0)
     {
         return EJECUCION_CONTINUA;

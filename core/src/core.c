@@ -117,7 +117,6 @@ int main(int argc, char *argv[])
             t_registros contexto_recibido;
 
             recibir_contexto(socket_dispatch, &jid, &contexto_recibido); // core extrae paquete de jid y su estado anterior
-            log_info(logger, "## Proceso despachado - JID: %d", jid);
 
             cargar_contexto(&contexto_recibido); 
             
