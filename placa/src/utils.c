@@ -61,7 +61,7 @@ char *crear_job_en_placa(uint32_t jid, char *nombre_archivo)
         return "ERROR EN CREAR JOB";
     }
 
-    t_job_memoria *job = malloc(sizeof(t_job_memoria));
+    t_job *job = malloc(sizeof(t_job));
     job->jid = jid;
     job->instrucciones = NULL;
     job->cantidad_instrucciones = 0;

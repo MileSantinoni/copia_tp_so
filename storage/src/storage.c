@@ -2,6 +2,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include "storage_server.h"
+#include "filesystem.h"   
 #include <utils/conexion.h>
 
 t_log *logger;
@@ -34,11 +35,13 @@ int main(int argc, char *argv[])
         perror("Error al iniciar el logger de storage");
         return EXIT_FAILURE;
     }
+    calcular_geometria();   
+
+    // arranque del servidor
+    int server_fd = iniciar_servidor(storage_config->PUERTO_ESCUCHA);
 
     // arranque del servidor
     // int server_fd = iniciar_servidor_storage();
-
-    int server_fd = iniciar_servidor(storage_config->PUERTO_ESCUCHA);
 
     if (server_fd == -1)
     {
