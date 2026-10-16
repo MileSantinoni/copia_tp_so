@@ -1,7 +1,13 @@
 #include "filesystem.h"
 #include "config.h" // storage config y el logger
+#include <stdlib.h>          
+#include <unistd.h>           
+#include <sys/stat.h>        
+#include <commons/string.h>   
+#include <string.h>
 
 t_geometria geometria;
+FILE *volumen = NULL;
 
 // primero se calcula donde empieza cada region del volumen a partir del config
 //bloque 0 -> superbloque
@@ -31,4 +37,68 @@ void calcular_geometria(void){
      geometria.primer_bloque_fat, geometria.primer_bloque_directorio -1, // los -1 indican que el ultimo bloque de una region es el anterior al primero de la siguiente la fat termina en 64 y directorio en 128
      geometria.primer_bloque_directorio, geometria.primer_bloque_datos - 1,
      geometria.primer_bloque_datos, geometria.entradas_directorio);
+}
+static void escibir_superbloque(void){ // escribe el superbloque en el bloque 0, campo por campo
+ void *bloque = malloc(geometria.tam_bloque);
+ memset(bloque, 0, geometria.tam_bloque);
+
+ int desplazamiento =0;
+  // firma exactamente 11 bytes sin el barra cero del final
+  memcpy(bloque+desplazamiento, FIRMA_FS, TAM_FIRMA);
+  desplazamiento += TAM_FIRMA;
+
+  // tamanio del bloque 
+  memcpy(bloque+desplazamiento, &geometria.tam_bloque, sizeof(uint32_t));
+  desplazamiento+= sizeof(uint32_t); 
+
+  // cantidad de bloques del filesystem
+  memcpy(bloque+desplazamiento, &geometria.cant_bloques, sizeof(uint32_t));
+  desplazamiento += sizeof(uint32_t);
+
+  // cantidad de bloques del directorio
+  memcpy(bloque+desplazamiento, &geometria.bloques_directorio, sizeof(uint32_t));
+  desplazamiento+= sizeof(uint32_t);
+
+  // el superbloque es el bloque 0 que empieza en el byte 0 del archivo
+  fseek(volumen,0, SEEK_SET);
+  fwrite(bloque, geometria.tam_bloque,1,volumen);
+
+  free(bloque);
+}
+static void crear_y_formatear_volumen(char*path){
+    volumen = fopen(path, "w+b");
+    if(volumen == NULL){
+         log_error(logger, "No se pudo crear el volumen en %s", path);
+        exit(EXIT_FAILURE);
+    }
+    // agrandamos el archivo al tamanio total. los bytes nuevos quedan en 0
+    long tamanio_total = (long)geometria.cant_bloques * geometria.tam_bloque;
+    ftruncate(fileno(volumen), tamanio_total); // truncara segun tamaño indicado por el usuario
+    escibir_superbloque();
+    fflush(volumen); // fuerza que lo escrito llegue al archivo
+    log_info(logger, "Volumen creado y formateado: %s (%ld bytes)", path, tamanio_total);
+}
+
+
+void iniciar_filesystem(void){ // se inicia el filesystem una vez al iniciar el storage
+// se decide si hay que abrir un volumen que ya existe o si hay que crear uno nuevo
+ calcular_geometria(); // todo lo que viene usa la geometria, por lo que debemos hacer los calculos correspondientes primero
+ 
+   // nos aseguramos que exista la carpeta del storage
+   // en caso de existir mkdir falla sin hacer nada
+   mkdir(storage_config->PATH_STORAGE, 0777); // 0777 maximo de permisos
+
+   // se arma la ruta completa carpeta y nombre del archivo
+   char *path = string_from_format ("%s%s", storage_config->PATH_STORAGE, NOMBRE_VOLUMEN);
+
+   // verifico si el archivo existia anteriormente
+
+   if (access(path, F_OK)== 0){
+    log_info(logger, "El volumen existe: %s", path);
+   }
+   else{
+    crear_y_formatear_volumen(path);
+   }
+free(path); // string_from_format reserva memoria nueva, por lo tanto la liberamos
+
 }

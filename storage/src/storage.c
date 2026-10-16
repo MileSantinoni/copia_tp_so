@@ -35,7 +35,7 @@ int main(int argc, char *argv[])
         perror("Error al iniciar el logger de storage");
         return EXIT_FAILURE;
     }
-    calcular_geometria();   
+    iniciar_filesystem();   
 
     // arranque del servidor
     int server_fd = iniciar_servidor(storage_config->PUERTO_ESCUCHA);

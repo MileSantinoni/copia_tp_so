@@ -1,9 +1,10 @@
 #ifndef STORAGE_FILESYSTEM_H_
 #define STORAGE_FILESYSTEM_H_
 
+
 #include <stdint.h>
 #include <stdbool.h>
-
+#include <stdio.h> 
 // el objetivo es que el modulo sepa donde empieza cada region del volumen
 
 // valores fijos del formato FAT32_TRAIN
@@ -16,6 +17,7 @@
 #define FAT_RESERVADO 0x0FFFFFFE // Superbloque, FAT y directorio nunca se asignan
 
 #define TAM_NOMBRE_CHECKPOINT 23 // aca si incluimos el barra cero
+#define NOMBRE_VOLUMEN "fat32_train.bin" // archivo del volumen dentro del path storage
 
 // entrada de directorio: 32 bytes exactos campo de entrada= 1, nombre del checkpoint = 23, tam checkpoint = 4, primer bloque de datos = 4
 
@@ -45,5 +47,7 @@ typedef struct{
 }t_geometria;
 
 extern t_geometria geometria; // variable del tipo de struct definido anteriormente
+extern FILE *volumen;
 void calcular_geometria(void); // prototipo de una funcion, que sirve para el archivo que incluya el .h
+void iniciar_filesystem(void);
 #endif
