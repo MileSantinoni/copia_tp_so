@@ -59,6 +59,15 @@ typedef struct {
     uint32_t tamanio_alloc;     // Bytes dinámicos asignados
 } t_job;
 
+//Estructura para representar cada marco fisico de la RAM
+typedef struct {
+    int nro_marco;
+    bool libre;
+    uint32_t jid;
+    uint32_t nro_pagina;
+} t_marco;
+
+
 // Diccionario/lista de Jobs cargafos.
 extern t_dictionary* diccionario_jobs;
 extern pthread_mutex_t mutex_jobs;
@@ -87,6 +96,14 @@ uint32_t asignar_paginas_job(t_job* job, uint32_t tamanio);
 void liberar_espacio_job(t_job* job, uint32_t tamanio);
 void liberar_entrada_pagina(void* elem);
 
+extern void* memoria_fisica;
+extern t_marco* tabla_marcos;
+extern int cantidad_marcos;
+extern pthread_mutex_t mutex_memoria;
+
+void inicializar_memoria_fisica(void);
+int obtener_marco_libre(void);
+void liberar_marco(int nro_marco);
 
 
 #endif 
