@@ -15,8 +15,6 @@
 #include <utils/protocolo.h>
 #include <utils/util.h>
 
-
-
 void *iniciar_conexion_como_servidor(void *arg)
 {
 
@@ -174,9 +172,9 @@ void *atender_core(void *arg)
         case DESALOJAR_JOB:
         {
             u_int32_t jid;
-            t_registros registros;    
+            t_registros registros;
             t_motivo_desalojo motivo;
-            recibir_desalojo(core->socket_dispatch,&jid, &registros, &motivo);
+            recibir_desalojo(core->socket_dispatch, &jid, &registros, &motivo);
 
             actualizar_contexto(jid, &registros);
 
@@ -190,8 +188,7 @@ void *atender_core(void *arg)
             }
             pthread_mutex_unlock(&mutex_lista_jobs);
 
-        
-               switch (motivo)
+            switch (motivo)
             {
             case FIN_QUANTUM:
             { // RR: se le acabo el turno pero no termino -> vuelve a READY
@@ -225,6 +222,23 @@ void *atender_core(void *arg)
 
             recibir_contexto(core->socket_dispatch, &jid, &registros);
 
+            log_info(logger, "========== REGISTROS ==========");
+            log_info(logger, "PC: %u", registros.PC);
+            log_info(logger, "AX: %u", registros.AX);
+            log_info(logger, "BX: %u", registros.BX);
+            log_info(logger, "CX: %u", registros.CX);
+            log_info(logger, "DX: %u", registros.DX);
+            log_info(logger, "P0: %u", registros.P0);
+            log_info(logger, "P1: %u", registros.P1);
+            log_info(logger, "P2: %u", registros.P2);
+            log_info(logger, "P3: %u", registros.P3);
+            log_info(logger, "P4: %u", registros.P4);
+            log_info(logger, "P5: %u", registros.P5);
+            log_info(logger, "E1: %u", registros.E1);
+            log_info(logger, "E2: %u", registros.E2);
+            log_info(logger, "E3: %u", registros.E3);
+            log_info(logger, "===============================");
+
             actualizar_contexto(jid, &registros);
 
             pthread_mutex_lock(&mutex_lista_jobs);
@@ -245,16 +259,18 @@ void *atender_core(void *arg)
             log_info(logger, "## (%u) - Solicitó syscall: INIT_JOB", pid);
 
             t_job *job_nuevo = crear_job();
-            u_int32_t jid_nuevo = job_nuevo->jid;   // lo guardo antes: si falla, el job se libera
+            u_int32_t jid_nuevo = job_nuevo->jid; // lo guardo antes: si falla, el job se libera
 
             t_solicitud_pendiente *peticion = crear_solicitud_pendiente(jid_nuevo, CREAR_JOB);
             enviar_crear_job_a_placa(jid_nuevo, path_job_nuevo, peticion->id_solicitd);
             sem_wait(&peticion->sem_respuesta);
 
-            if (peticion->exito){
-                encolar_new(job_nuevo);    
+            if (peticion->exito)
+            {
+                encolar_new(job_nuevo);
             }
-            else{
+            else
+            {
                 log_error(logger, "Respuesta sin exito para crear el Job con pid %u en placa", jid_nuevo);
 
                 pthread_mutex_lock(&mutex_lista_jobs);
@@ -264,7 +280,7 @@ void *atender_core(void *arg)
             }
             eliminar_solicitud_pendiente(peticion);
             list_destroy_and_destroy_elements(paquete, free);
-            
+
             // INIT_JOB no bloquea: el Core espera esta respuesta y sigue ejecutando
             t_paquete *respuesta = crear_paquete(RESPUESTA_SYSCALL);
             agregar_a_paquete(respuesta, &jid_nuevo, sizeof(u_int32_t));
@@ -273,7 +289,7 @@ void *atender_core(void *arg)
             break;
         }
 
-            default:
+        default:
             log_warning(logger, "Operación desconocido desde CORE: %d", codigo_operacion);
             close(core->socket_dispatch);
             return NULL;
