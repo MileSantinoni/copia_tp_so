@@ -377,11 +377,7 @@ t_resultado_ejecucion ejecutar_instruccion(
         return EJECUCION_CONTINUA;
     }
 
-    log_warning(
-        logger,
-        "## JID: %u - Instrucción no implementada: %s",
-        jid,
-        instruccion->nombre);
+    log_warning(logger,"## JID: %u - Instrucción no implementada: %s",jid,  instruccion->nombre);
 
     return EJECUCION_CONTINUA;
 }

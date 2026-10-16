@@ -1,5 +1,5 @@
-#ifndef PLACA_H_
-#define PLACA_H_
+#ifndef PLACA_UTILS_H_
+#define PLACA_UTILS_H_
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -22,16 +22,16 @@
 #include <utils/protocolo.h>
 
 // Estructura para guardar la configuracion
-typedef struct 
+typedef struct
 {
-    char* puerto_escucha;
-    char* log_level;
+    char *puerto_escucha;
+    char *log_level;
     int tam_memoria;
     int tam_pagina;
     int retardo_memoria;
-    char* algoritmo_reemplazo;
-    char* path_instrucciones;
-    char* path_offload;
+    char *algoritmo_reemplazo;
+    char *path_instrucciones;
+    char *path_offload;
     int tam_offload;
     int retardo_offload;
 } t_config_placa;
@@ -41,29 +41,45 @@ typedef struct
 typedef struct
 {
     uint32_t jid;
-    char** instrucciones; // arrray de strings
+    char **instrucciones; // arrray de strings
     int cantidad_instrucciones;
-} t_job_instrucciones;
+    t_list *tabla_de_paginas;
+    u_int32_t pagina_siguiente;
 
-// Diccionario/lista de Jobs cargafos.
-extern t_dictionary* diccionario_jobs;
+} t_job_memoria;
+
+typedef struct
+{
+    u_int32_t nro_pagina;
+    u_int32_t marco;
+    bool presente;
+
+} t_tabla_de_paginas;
+
+typedef struct
+{
+    void *memoria_total;
+
+} t_memoria;
+
+// Diccionario/lista de Jobs cargados.
+extern t_dictionary *diccionario_jobs;
 extern pthread_mutex_t mutex_jobs;
 
-
 // Variables Globales
-extern t_log* logger;
-extern t_config* config;
+extern t_log *logger;
+extern t_config *config;
 extern t_config_placa config_valores;
 
 // Prototipos de funciones
-void inicializar_placa(char* path_config);
+void inicializar_placa(char *path_config);
 void esperar_conexiones(int socket_servidor);
-void* atender_cliente(void* arg);
+void *atender_cliente(void *arg);
 void finalizar_job_en_placa(uint32_t jid);
 // void terminar_placa(void); --> la pase de forma general al util  porque nos sirve a todos los modulos
 
-//Prototipos CHECK 2
-char* crear_job_en_placa(uint32_t jid, char* nombre_archivo); // Devueelve mensaje de ERROR o de OK
-char* obtener_instruccion(uint32_t jid, uint32_t pc);
+// Prototipos CHECK 2
+char *crear_job_en_placa(uint32_t jid, char *nombre_archivo); // Devueelve mensaje de ERROR o de OK
+char *obtener_instruccion(uint32_t jid, uint32_t pc);
 
-#endif 
+#endif
