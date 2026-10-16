@@ -218,11 +218,88 @@ void *atender_cliente(void *arg)
     return NULL;
 }
 
+t_entrada_pagina* crear_entrada_pagina(uint32_t nro_pagina, uint32_t pos_offload) {
+    t_entrada_pagina* entrada = malloc(sizeof(t_entrada_pagina));
+    entrada->nro_pagina = nro_pagina;
+    entrada->marco = -1;              // Arranca sin marco asignado (bajo demanda)
+    entrada->presencia = false;       // No está en memoria física aún
+    entrada->modificado = false;
+    entrada->uso = false;
+    entrada->timestamp_lru = 0;
+    entrada->lockeada = false;
+    entrada->posicion_offload = pos_offload;
+    return entrada;
+}
+
+t_entrada_pagina* buscar_pagina(t_job* job, uint32_t nro_pagina) {
+    if (job == NULL || job->tabla_paginas == NULL) {
+        return NULL;
+    }
+
+    for (int i = 0; i < list_size(job->tabla_paginas); i++) {
+        t_entrada_pagina* entrada = list_get(job->tabla_paginas, i);
+        if (entrada->nro_pagina == nro_pagina) {
+            return entrada;
+        }
+    }
+
+    return NULL;
+}
+
+void liberar_entrada_pagina(void* elem) {
+    t_entrada_pagina* entrada = (t_entrada_pagina*) elem;
+    free(entrada);
+}
+
+uint32_t asignar_paginas_job(t_job* job, uint32_t tamanio) {
+    uint32_t cant_paginas_actuales = list_size(job->tabla_paginas);
+    uint32_t direccion_logica_base = cant_paginas_actuales * config_valores.tam_pagina;
+
+    // Cantidad de páginas necesarias redondeadas hacia arriba
+    uint32_t paginas_a_agregar = (tamanio + config_valores.tam_pagina - 1) / config_valores.tam_pagina;
+
+    for (uint32_t i = 0; i < paginas_a_agregar; i++) {
+        uint32_t nro_pagina = cant_paginas_actuales + i;
+        uint32_t bloque_offload = nro_pagina; // placeholder hasta conectar bitmap de swap
+        
+        t_entrada_pagina* nueva_pagina = crear_entrada_pagina(nro_pagina, bloque_offload);
+        list_add(job->tabla_paginas, nueva_pagina);
+    }
+
+    job->tamanio_alloc += tamanio;
+
+    log_info(logger, "## JID: %d - Asignación - Dirección Lógica: %u - Tamaño: %u",
+             job->jid, direccion_logica_base, tamanio);
+
+    return direccion_logica_base;
+}
+
+void liberar_espacio_job(t_job* job, uint32_t tamanio) {
+    uint32_t paginas_a_liberar = (tamanio + config_valores.tam_pagina - 1) / config_valores.tam_pagina;
+
+    for (uint32_t i = 0; i < paginas_a_liberar; i++) {
+        if (!list_is_empty(job->tabla_paginas)) {
+            t_entrada_pagina* entrada = list_remove(job->tabla_paginas, list_size(job->tabla_paginas) - 1);
+            liberar_entrada_pagina(entrada);
+        }
+    }
+
+    if (job->tamanio_alloc >= tamanio) {
+        job->tamanio_alloc -= tamanio;
+    } else {
+        job->tamanio_alloc = 0;
+    }
+
+    uint32_t direccion_logica_base = list_size(job->tabla_paginas) * config_valores.tam_pagina;
+    log_info(logger, "## JID: %d - Liberación - Dirección Lógica: %u - Tamaño: %u",
+             job->jid, direccion_logica_base, tamanio);
+}
+
 char *obtener_instruccion(uint32_t jid, uint32_t pc)
 {
     pthread_mutex_lock(&mutex_jobs);
     char *clave = string_itoa(jid);
-    t_job_instrucciones *job = dictionary_get(diccionario_jobs, clave);
+    t_job *job = dictionary_get(diccionario_jobs, clave);
     free(clave);
 
     char *instruccion_copia = NULL;
@@ -244,7 +321,7 @@ void finalizar_job_en_placa(uint32_t jid)
     pthread_mutex_lock(&mutex_jobs);
 
     char *clave = string_itoa(jid);
-    t_job_instrucciones *job = dictionary_remove(diccionario_jobs, clave);
+    t_job *job = dictionary_remove(diccionario_jobs, clave);
     free(clave);
 
     pthread_mutex_unlock(&mutex_jobs);
@@ -279,7 +356,7 @@ char *crear_job_en_placa(uint32_t jid, char *nombre_archivo)
         return "ERROR EN CREAR JOB";
     }
 
-    t_job_instrucciones *job = malloc(sizeof(t_job_instrucciones));
+    t_job *job = malloc(sizeof(t_job));
     job->jid = jid;
     job->instrucciones = NULL;
     job->cantidad_instrucciones = 0;

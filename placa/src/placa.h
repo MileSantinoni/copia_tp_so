@@ -16,6 +16,8 @@
 #include <commons/log.h>
 #include <commons/config.h>
 #include <commons/string.h>
+#include <commons/collections/list.h>
+#include <commons/bitarray.h>
 
 #include <commons/collections/dictionary.h>
 
@@ -36,14 +38,26 @@ typedef struct
     int retardo_offload;
 } t_config_placa;
 
-// Estructura para guardar las instrucciones de cada Job
+//Estructura para entrada de pagina
+typedef struct {
+    uint32_t nro_pagina;
+    int marco;                  // -1 si no esta en RAM (Page Fault)
+    bool presencia;             // true si esta en RAM, false si está en swap/offload
+    bool modificado;            // bit M
+    bool uso;                   // bit U
+    uint64_t timestamp_lru;     // instante de ultimo acceso
+    bool lockeada;              // true si esta lock (no elegible como victima)
+    uint32_t posicion_offload;  // bloque en el archivo offload
+} t_entrada_pagina;
 
-typedef struct
-{
+// Estructura para guardar las instrucciones de cada Job
+typedef struct {
     uint32_t jid;
-    char** instrucciones; // arrray de strings
+    char** instrucciones;
     int cantidad_instrucciones;
-} t_job_instrucciones;
+    t_list* tabla_paginas;      // Lista de t_entrada_pagina*
+    uint32_t tamanio_alloc;     // Bytes dinámicos asignados
+} t_job;
 
 // Diccionario/lista de Jobs cargafos.
 extern t_dictionary* diccionario_jobs;
@@ -65,5 +79,14 @@ void finalizar_job_en_placa(uint32_t jid);
 //Prototipos CHECK 2
 char* crear_job_en_placa(uint32_t jid, char* nombre_archivo); // Devueelve mensaje de ERROR o de OK
 char* obtener_instruccion(uint32_t jid, uint32_t pc);
+
+//Prototipos para CHECK 3
+t_entrada_pagina* crear_entrada_pagina(uint32_t nro_pagina, uint32_t pos_offload);
+t_entrada_pagina* buscar_pagina(t_job* job, uint32_t nro_pagina);
+uint32_t asignar_paginas_job(t_job* job, uint32_t tamanio);
+void liberar_espacio_job(t_job* job, uint32_t tamanio);
+void liberar_entrada_pagina(void* elem);
+
+
 
 #endif 
