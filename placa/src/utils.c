@@ -4,7 +4,7 @@ char *obtener_instruccion(uint32_t jid, uint32_t pc)
 {
     pthread_mutex_lock(&mutex_jobs);
     char *clave = string_itoa(jid);
-    t_job_memoria*job = dictionary_get(diccionario_jobs, clave);
+    t_job *job = dictionary_get(diccionario_jobs, clave);
     free(clave);
 
     char *instruccion_copia = NULL;
@@ -18,7 +18,7 @@ char *obtener_instruccion(uint32_t jid, uint32_t pc)
     else
         log_info(logger, "## JID: %d - Obtener instrucción: %u - Instrucción: %s", jid, pc, instruccion_copia);
 
-    return instruccion_copia; // es responsabilidad de quien la llama hacer free
+    return instruccion_copia; // quien llama debe hacer free
 }
 
 void finalizar_job_en_placa(uint32_t jid)
@@ -26,7 +26,7 @@ void finalizar_job_en_placa(uint32_t jid)
     pthread_mutex_lock(&mutex_jobs);
 
     char *clave = string_itoa(jid);
-    t_job_memoria *job = dictionary_remove(diccionario_jobs, clave);
+    t_job *job = dictionary_remove(diccionario_jobs, clave);
     free(clave);
 
     pthread_mutex_unlock(&mutex_jobs);
@@ -41,6 +41,11 @@ void finalizar_job_en_placa(uint32_t jid)
         free(job->instrucciones[i]);
 
     free(job->instrucciones);
+
+    if (job->tabla_de_paginas != NULL) {
+        list_destroy_and_destroy_elements(job->tabla_de_paginas, liberar_entrada_pagina);
+    }
+
     free(job);
 
     log_info(logger, "## JID: %d - Job finalizado, estructuras liberadas en la Placa", jid);
@@ -65,8 +70,8 @@ char *crear_job_en_placa(uint32_t jid, char *nombre_archivo)
     job->jid = jid;
     job->instrucciones = NULL;
     job->cantidad_instrucciones = 0;
-    job->tabla_de_paginas=list_create();
-    job->pagina_siguiente=0;
+    job->tabla_de_paginas = list_create();
+    job->tamanio_alloc = 0;
 
     char *linea = NULL;
     size_t len = 0;
