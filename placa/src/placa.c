@@ -10,16 +10,27 @@ t_log *logger;
 t_config *config;
 t_config_placa config_valores;
 
+//-------CHECK 3---------
 void* memoria_fisica = NULL;
 t_marco* tabla_marcos = NULL;
 int cantidad_marcos = 0;
 pthread_mutex_t mutex_memoria = PTHREAD_MUTEX_INITIALIZER;
+int puntero_clock = 0; //variable global para el puntero del clock
+
+FILE* archivo_offload = NULL;
+t_bitarray* bitmap_offload = NULL;
+void* bits_offload = NULL;
+int cantidad_bloques_offload = 0;
+pthread_mutex_t mutex_offload = PTHREAD_MUTEX_INITIALIZER;
+
+//--------------------------
 
 t_dictionary *diccionario_jobs;
 pthread_mutex_t mutex_jobs = PTHREAD_MUTEX_INITIALIZER;
 
 int socket_core;
 int socket_planificador;
+
 
 int main(int argc, char *argv[])
 {
@@ -85,6 +96,7 @@ void inicializar_placa(char *path_config)
 
     //Inicializacion de la memoria fisica y tabla de marcos
     inicializar_memoria_fisica();
+    inicializar_offload();
 }
 
 void inicializar_memoria_fisica(void) {
@@ -125,6 +137,117 @@ void liberar_marco(int nro_marco) {
     tabla_marcos[nro_marco].libre = true;
     tabla_marcos[nro_marco].jid = 0;
     tabla_marcos[nro_marco].nro_pagina = 0;
+    pthread_mutex_unlock(&mutex_memoria);
+}
+
+void inicializar_offload(void) {
+    archivo_offload = fopen(config_valores.path_offload, "w+b");
+    if (archivo_offload == NULL) {
+        log_error(logger, "No se pudo abrir/crear el archivo Offload en: %s", config_valores.path_offload);
+        exit(EXIT_FAILURE);
+    }
+
+    if (ftruncate(fileno(archivo_offload), config_valores.tam_offload) != 0) {
+        log_error(logger, "Error al truncar el archivo de Offload");
+        fclose(archivo_offload);
+        exit(EXIT_FAILURE);
+    }
+
+    cantidad_bloques_offload = config_valores.tam_offload / config_valores.tam_pagina;
+    size_t tam_bitmap_bytes = (cantidad_bloques_offload + 7) / 8;
+    bits_offload = calloc(tam_bitmap_bytes, 1);
+    bitmap_offload = bitarray_create_with_mode(bits_offload, tam_bitmap_bytes, LSB_FIRST);
+
+    for (int i = 0; i < cantidad_bloques_offload; i++) {
+        bitarray_clean_bit(bitmap_offload, i);
+    }
+
+    log_info(logger, "Offload inicializado: %d bytes (%d bloques de %d bytes) en %s",
+             config_valores.tam_offload, cantidad_bloques_offload, config_valores.tam_pagina, config_valores.path_offload);
+}
+
+int obtener_bloque_offload_libre(void) {
+    pthread_mutex_lock(&mutex_offload);
+    for (int i = 0; i < cantidad_bloques_offload; i++) {
+        if (!bitarray_test_bit(bitmap_offload, i)) {
+            bitarray_set_bit(bitmap_offload, i);
+            pthread_mutex_unlock(&mutex_offload);
+            return i;
+        }
+    }
+    pthread_mutex_unlock(&mutex_offload);
+    return -1;
+}
+
+void liberar_bloque_offload(int nro_bloque) {
+    if (nro_bloque < 0 || nro_bloque >= cantidad_bloques_offload) return;
+
+    pthread_mutex_lock(&mutex_offload);
+    bitarray_clean_bit(bitmap_offload, nro_bloque);
+    pthread_mutex_unlock(&mutex_offload);
+}
+
+void escribir_pagina_en_offload(uint32_t bloque_offload, void* buffer_origen) {
+    pthread_mutex_lock(&mutex_offload);
+    usleep(config_valores.retardo_offload * 1000);
+
+    fseek(archivo_offload, bloque_offload * config_valores.tam_pagina, SEEK_SET);
+    fwrite(buffer_origen, config_valores.tam_pagina, 1, archivo_offload);
+    fflush(archivo_offload);
+
+    pthread_mutex_unlock(&mutex_offload);
+}
+
+void leer_pagina_de_offload(uint32_t bloque_offload, void* buffer_destino) {
+    pthread_mutex_lock(&mutex_offload);
+    usleep(config_valores.retardo_offload * 1000);
+
+    fseek(archivo_offload, bloque_offload * config_valores.tam_pagina, SEEK_SET);
+    fread(buffer_destino, config_valores.tam_pagina, 1, archivo_offload);
+
+    pthread_mutex_unlock(&mutex_offload);
+}
+
+void deslockear_paginas_job(uint32_t jid) {
+    pthread_mutex_lock(&mutex_jobs);
+    char *clave = string_itoa(jid);
+    t_job *job = dictionary_get(diccionario_jobs, clave);
+    free(clave);
+
+    if (job != NULL) {
+        for (int i = 0; i < list_size(job->tabla_paginas); i++) {
+            t_entrada_pagina *entrada = list_get(job->tabla_paginas, i);
+            entrada->lockeada = false;
+        }
+    }
+    pthread_mutex_unlock(&mutex_jobs);
+}
+
+void leer_de_memoria_fisica(uint32_t dir_fisica, uint32_t tamanio, void *buffer_destino) {
+    usleep(config_valores.retardo_memoria * 1000);
+    pthread_mutex_lock(&mutex_memoria);
+    memcpy(buffer_destino, memoria_fisica + dir_fisica, tamanio);
+    pthread_mutex_unlock(&mutex_memoria);
+}
+
+void escribir_en_memoria_fisica(uint32_t jid, uint32_t dir_fisica, uint32_t tamanio, void *datos) {
+    usleep(config_valores.retardo_memoria * 1000);
+    pthread_mutex_lock(&mutex_memoria);
+    memcpy(memoria_fisica + dir_fisica, datos, tamanio);
+
+    int nro_marco = dir_fisica / config_valores.tam_pagina;
+    if (nro_marco < cantidad_marcos && !tabla_marcos[nro_marco].libre) {
+        char *clave = string_itoa(jid);
+        t_job *job = dictionary_get(diccionario_jobs, clave);
+        free(clave);
+        if (job != NULL) {
+            t_entrada_pagina *entrada = buscar_pagina(job, tabla_marcos[nro_marco].nro_pagina);
+            if (entrada != NULL) {
+                entrada->modificado = true;
+                entrada->uso = true;
+            }
+        }
+    }
     pthread_mutex_unlock(&mutex_memoria);
 }
 
@@ -294,6 +417,194 @@ void *atender_cliente(void *arg)
             agregar_a_paquete(paquete,&direccion_logica, sizeof(u_int32_t));
         }
 
+        case PEDIR_TAM_PAGINA:
+        {
+            uint32_t tam_pag = (uint32_t)config_valores.tam_pagina;
+            t_paquete *paquete = crear_paquete(RESPUESTA_TAM_PAGINA);
+            agregar_a_paquete(paquete, &tam_pag, sizeof(uint32_t));
+            enviar_paquete(paquete, socket_cliente);
+            eliminar_paquete(paquete);
+            break;
+        }
+
+        case OBTENER_MARCO:
+        {
+            t_list *lista = recibir_paquete(socket_cliente);
+            uint32_t jid = *(uint32_t *)list_get(lista, 0);
+            uint32_t nro_pagina = *(uint32_t *)list_get(lista, 1);
+
+            pthread_mutex_lock(&mutex_jobs);
+            char *clave = string_itoa(jid);
+            t_job *job = dictionary_get(diccionario_jobs, clave);
+            free(clave);
+
+            t_entrada_pagina *entrada = (job != NULL) ? buscar_pagina(job, nro_pagina) : NULL;
+            pthread_mutex_unlock(&mutex_jobs);
+
+            usleep(config_valores.retardo_memoria * 1000);
+
+            if (entrada == NULL || !entrada->presencia) {
+                log_info(logger, "## (%u) - Page Fault en página: %u", jid, nro_pagina);
+                t_paquete *paquete = crear_paquete(RESPUESTA_PAGE_FAULT);
+                agregar_a_paquete(paquete, &nro_pagina, sizeof(uint32_t));
+                enviar_paquete(paquete, socket_cliente);
+                eliminar_paquete(paquete);
+            } else {
+                entrada->uso = true;
+                entrada->lockeada = true;
+                uint32_t marco = (uint32_t)entrada->marco;
+
+                t_paquete *paquete = crear_paquete(RESPUESTA_MARCO);
+                agregar_a_paquete(paquete, &marco, sizeof(uint32_t));
+                enviar_paquete(paquete, socket_cliente);
+                eliminar_paquete(paquete);
+            }
+
+            list_destroy_and_destroy_elements(lista, free);
+            break;
+        }
+
+        case CARGAR_PAGINA:
+        {
+            t_list *lista = recibir_paquete(socket_cliente);
+            uint32_t jid = *(uint32_t *)list_get(lista, 0);
+            uint32_t nro_pagina = *(uint32_t *)list_get(lista, 1);
+
+            pthread_mutex_lock(&mutex_jobs);
+            char *clave = string_itoa(jid);
+            t_job *job = dictionary_get(diccionario_jobs, clave);
+            free(clave);
+
+            t_entrada_pagina *entrada = (job != NULL) ? buscar_pagina(job, nro_pagina) : NULL;
+            pthread_mutex_unlock(&mutex_jobs);
+
+            int marco = -1;
+            if (entrada != NULL) {
+                marco = cargar_pagina_a_ram(jid, entrada);
+            }
+
+            uint32_t respuesta_marco = (marco >= 0) ? (uint32_t)marco : 0;
+            t_paquete *paquete = crear_paquete(RESPUESTA_SOLICITUD);
+            agregar_a_paquete(paquete, &respuesta_marco, sizeof(uint32_t));
+            enviar_paquete(paquete, socket_cliente);
+            eliminar_paquete(paquete);
+
+            list_destroy_and_destroy_elements(lista, free);
+            break;
+        }
+
+        case LEER_MEMORIA:
+        {
+            t_list *lista = recibir_paquete(socket_cliente);
+            uint32_t jid = *(uint32_t *)list_get(lista, 0);
+            uint32_t dir_fisica = *(uint32_t *)list_get(lista, 1);
+            uint32_t tamanio = *(uint32_t *)list_get(lista, 2);
+
+            void *buffer_lectura = malloc(tamanio);
+            leer_de_memoria_fisica(dir_fisica, tamanio, buffer_lectura);
+
+            log_info(logger, "## JID: %u - Lectura Física - Dir: %u - Tamaño: %u", jid, dir_fisica, tamanio);
+
+            t_paquete *paquete = crear_paquete(RESPUESTA_LECTURA);
+            agregar_a_paquete(paquete, buffer_lectura, tamanio);
+            enviar_paquete(paquete, socket_cliente);
+            eliminar_paquete(paquete);
+
+            free(buffer_lectura);
+            list_destroy_and_destroy_elements(lista, free);
+            break;
+        }
+
+        case ESCRIBIR_MEMORIA:
+        {
+            t_list *lista = recibir_paquete(socket_cliente);
+            uint32_t jid = *(uint32_t *)list_get(lista, 0);
+            uint32_t dir_fisica = *(uint32_t *)list_get(lista, 1);
+            uint32_t tamanio = *(uint32_t *)list_get(lista, 2);
+            void *contenido = list_get(lista, 3);
+
+            escribir_en_memoria_fisica(jid, dir_fisica, tamanio, contenido);
+
+            log_info(logger, "## JID: %u - Escritura Física - Dir: %u - Tamaño: %u", jid, dir_fisica, tamanio);
+
+            t_paquete *paquete = crear_paquete(RESPUESTA_ESCRITURA);
+            enviar_paquete(paquete, socket_cliente);
+            eliminar_paquete(paquete);
+
+            list_destroy_and_destroy_elements(lista, free);
+            break;
+        }
+
+        case DESLOCKEAR_PAGINAS:
+        {
+            t_list *lista = recibir_paquete(socket_cliente);
+            uint32_t jid = *(uint32_t *)list_get(lista, 0);
+
+            deslockear_paginas_job(jid);
+
+            t_paquete *paquete = crear_paquete(RESPUESTA_SOLICITUD);
+            char *msg = "OK";
+            agregar_a_paquete(paquete, msg, strlen(msg) + 1);
+            enviar_paquete(paquete, socket_cliente);
+            eliminar_paquete(paquete);
+
+            list_destroy_and_destroy_elements(lista, free);
+            break;
+        }
+
+        case ASIGNAR_ESPACIO:
+        {
+            t_list *lista = recibir_paquete(socket_cliente);
+            uint32_t jid = *(uint32_t *)list_get(lista, 0);
+            uint32_t tamanio = *(uint32_t *)list_get(lista, 1);
+
+            pthread_mutex_lock(&mutex_jobs);
+            char *clave = string_itoa(jid);
+            t_job *job = dictionary_get(diccionario_jobs, clave);
+            free(clave);
+
+            uint32_t dir_logica = 0;
+            if (job != NULL) {
+                dir_logica = asignar_paginas_job(job, tamanio);
+            }
+            pthread_mutex_unlock(&mutex_jobs);
+
+            t_paquete *paquete = crear_paquete(RESPUESTA_SOLICITUD);
+            agregar_a_paquete(paquete, &dir_logica, sizeof(uint32_t));
+            enviar_paquete(paquete, socket_cliente);
+            eliminar_paquete(paquete);
+
+            list_destroy_and_destroy_elements(lista, free);
+            break;
+        }
+
+        case LIBERAR_ESPACIO:
+        {
+            t_list *lista = recibir_paquete(socket_cliente);
+            uint32_t jid = *(uint32_t *)list_get(lista, 0);
+            uint32_t dir_logica = *(uint32_t *)list_get(lista, 1);
+
+            pthread_mutex_lock(&mutex_jobs);
+            char *clave = string_itoa(jid);
+            t_job *job = dictionary_get(diccionario_jobs, clave);
+            free(clave);
+
+            if (job != NULL) {
+                uint32_t tamanio_a_liberar = job->tamanio_alloc - dir_logica;
+                liberar_espacio_job(job, tamanio_a_liberar);
+            }
+            pthread_mutex_unlock(&mutex_jobs);
+
+            t_paquete *paquete = crear_paquete(RESPUESTA_SOLICITUD);
+            char *ok_msg = "LIBERADO_OK";
+            agregar_a_paquete(paquete, ok_msg, strlen(ok_msg) + 1);
+            enviar_paquete(paquete, socket_cliente);
+            eliminar_paquete(paquete);
+
+            list_destroy_and_destroy_elements(lista, free);
+            break;
+        }
+
         default:
             log_warning(logger, "## Código de operación desconocido: %d", codigo_operacion);
             break;
@@ -332,11 +643,163 @@ t_entrada_pagina* buscar_pagina(t_job* job, uint32_t nro_pagina) {
     return NULL;
 }
 
+//==============================
+//Seguir aca con el algoritmo de clock y con page fault
+//==============================
+
+// Busca la página asociada a un marco ocupado
+static t_entrada_pagina* obtener_pagina_por_marco(int marco, t_job** out_job) {
+    if (tabla_marcos[marco].libre) return NULL;
+
+    char* clave = string_itoa(tabla_marcos[marco].jid);
+    t_job* job = dictionary_get(diccionario_jobs, clave);
+    free(clave);
+
+    if (job == NULL) return NULL;
+    if (out_job != NULL) *out_job = job;
+
+    return buscar_pagina(job, tabla_marcos[marco].nro_pagina);
+}
+
+// Algoritmo Clock Modificado (CLOCK-M)
+t_entrada_pagina* seleccionar_victima_clock_m(void) {
+    int marcos_revisados;
+
+    while (1) {
+        // Paso 1: Buscar (U=0, M=0) sin modificar bits
+        marcos_revisados = 0;
+        while (marcos_revisados < cantidad_marcos) {
+            t_job* job = NULL;
+            t_entrada_pagina* entrada = obtener_pagina_por_marco(puntero_clock, &job);
+
+            if (entrada != NULL && entrada->presencia && !entrada->lockeada) {
+                if (!entrada->uso && !entrada->modificado) {
+                    puntero_clock = (puntero_clock + 1) % cantidad_marcos;
+                    return entrada;
+                }
+            }
+            puntero_clock = (puntero_clock + 1) % cantidad_marcos;
+            marcos_revisados++;
+        }
+
+        // Paso 2: Buscar (U=0, M=1) y poner U=0 en los que tengan U=1
+        marcos_revisados = 0;
+        while (marcos_revisados < cantidad_marcos) {
+            t_job* job = NULL;
+            t_entrada_pagina* entrada = obtener_pagina_por_marco(puntero_clock, &job);
+
+            if (entrada != NULL && entrada->presencia && !entrada->lockeada) {
+                if (!entrada->uso && entrada->modificado) {
+                    puntero_clock = (puntero_clock + 1) % cantidad_marcos;
+                    return entrada;
+                } else if (entrada->uso) {
+                    entrada->uso = false;
+                }
+            }
+            puntero_clock = (puntero_clock + 1) % cantidad_marcos;
+            marcos_revisados++;
+        }
+        // Si no encontró, el bucle repite (Paso 3 y Paso 4)
+    }
+}
+
+// Carga una página que sufrió Page Fault a un marco físico
+int cargar_pagina_a_ram(uint32_t jid, t_entrada_pagina* pagina_a_cargar) {
+    int marco_asignado = obtener_marco_libre();
+
+    // Si no hay marcos libres, se ejecuta el reemplazo con CLOCK-M
+    if (marco_asignado == -1) {
+        pthread_mutex_lock(&mutex_memoria);
+        t_entrada_pagina* victima = seleccionar_victima_clock_m();
+        pthread_mutex_unlock(&mutex_memoria);
+
+        if (victima == NULL) {
+            log_error(logger, "## JID: %d - Error: Todas las páginas están lockeadas, no hay víctima posible", jid);
+            return -1;
+        }
+
+        marco_asignado = victima->marco;
+        log_info(logger, "## Reemplazo: Sale víctima Job %d (Pág: %d, Marco: %d)",
+                 tabla_marcos[marco_asignado].jid, victima->nro_pagina, marco_asignado);
+
+        // Si la víctima estaba modificada, se sincroniza con el archivo de Offload
+        if (victima->modificado) {
+            void* origen = memoria_fisica + (marco_asignado * config_valores.tam_pagina);
+            escribir_pagina_en_offload(victima->posicion_offload, origen);
+            victima->modificado = false;
+        }
+
+        // La víctima deja de estar en RAM
+        victima->presencia = false;
+        victima->marco = -1;
+    }
+
+    // Traer la página desde el archivo de Offload a la RAM
+    void* destino = memoria_fisica + (marco_asignado * config_valores.tam_pagina);
+    leer_pagina_de_offload(pagina_a_cargar->posicion_offload, destino);
+
+    // Actualizar tabla de marcos
+    pthread_mutex_lock(&mutex_memoria);
+    tabla_marcos[marco_asignado].libre = false;
+    tabla_marcos[marco_asignado].jid = jid;
+    tabla_marcos[marco_asignado].nro_pagina = pagina_a_cargar->nro_pagina;
+    pthread_mutex_unlock(&mutex_memoria);
+
+    // Actualizar la entrada de página cargada
+    pagina_a_cargar->marco = marco_asignado;
+    pagina_a_cargar->presencia = true;
+    pagina_a_cargar->uso = true;
+    pagina_a_cargar->modificado = false;
+
+    return marco_asignado;
+}
+
+// Traducción MMU
+int traducir_y_obtener_marco(uint32_t jid, uint32_t nro_pagina) {
+    pthread_mutex_lock(&mutex_jobs);
+    char* clave = string_itoa(jid);
+    t_job* job = dictionary_get(diccionario_jobs, clave);
+    free(clave);
+
+    if (job == NULL) {
+        pthread_mutex_unlock(&mutex_jobs);
+        log_error(logger, "## JID: %d - Job no encontrado al solicitar traducción", jid);
+        return -1;
+    }
+
+    t_entrada_pagina* entrada = buscar_pagina(job, nro_pagina);
+    pthread_mutex_unlock(&mutex_jobs);
+
+    if (entrada == NULL) {
+        log_error(logger, "## JID: %d - Página %u fuera de rango (Segmentation Fault)", jid, nro_pagina);
+        return -1;
+    }
+
+    usleep(config_valores.retardo_memoria * 1000);
+
+    // Si está en RAM
+    if (entrada->presencia) {
+        entrada->uso = true;
+        entrada->lockeada = true;
+        return entrada->marco;
+    }
+
+    // Si no está en RAM (Page Fault)
+    log_info(logger, "## (%u) - Page Fault en página: %u", jid, nro_pagina);
+    int marco = cargar_pagina_a_ram(jid, entrada);
+    if (marco != -1) {
+        entrada->lockeada = true;
+    }
+
+    return marco;
+}
+
 void liberar_entrada_pagina(void* elem) {
     t_entrada_pagina* entrada = (t_entrada_pagina*) elem;
     if (entrada->presencia && entrada->marco != -1) {
         liberar_marco(entrada->marco);
     }
+    liberar_bloque_offload(entrada->posicion_offload);
     free(entrada);
 }
 
@@ -449,6 +912,9 @@ char *crear_job_en_placa(uint32_t jid, char *nombre_archivo)
     job->jid = jid;
     job->instrucciones = NULL;
     job->cantidad_instrucciones = 0;
+
+    job->tabla_paginas = list_create();
+    job->tamanio_alloc = 0;
 
     char *linea = NULL;
     size_t len = 0;
