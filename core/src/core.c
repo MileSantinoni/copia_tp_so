@@ -15,6 +15,7 @@
 #include <utils/protocolo.h>
 #include <utils/util.h>
 #include "ciclo_de_instruccion.h"
+#include "mmu.h"
 
 t_log *logger = NULL;
 t_config *config = NULL;
@@ -89,11 +90,26 @@ int main(int argc, char *argv[])
 
     // 3. Conexion con placa
     socket_placa = conectar_con_placa(ip_placa, puerto_placa, atoi(id_core));
+    
     if (socket_placa == -1)
     {
         liberar_conexion(socket_dispatch);
         liberar_conexion(socket_interrupt);
         terminar_modulo();
+        return EXIT_FAILURE;
+    }
+
+
+    // CP 3, acá se inicializa la mmu
+    if (!mmu_inicializar(socket_placa))
+    {
+        log_error(logger, "No se pudo inicializar la MMU con la Placa");
+
+        liberar_conexion(socket_dispatch);
+        liberar_conexion(socket_interrupt);
+        liberar_conexion(socket_placa);
+        terminar_modulo();
+
         return EXIT_FAILURE;
     }
 
