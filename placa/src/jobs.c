@@ -1,4 +1,11 @@
-#include "utils.h"
+#include "placa.h"
+#include "jobs.h"
+#include "memoria.h"
+
+// Todo lo relacionado a memoria de instrucciones 
+
+t_dictionary *diccionario_jobs;
+pthread_mutex_t mutex_jobs = PTHREAD_MUTEX_INITIALIZER;
 
 char *obtener_instruccion(uint32_t jid, uint32_t pc)
 {
@@ -98,3 +105,4 @@ char *crear_job_en_placa(uint32_t jid, char *nombre_archivo)
     log_info(logger, "## JID: %d - Job Creado", jid);
     return "CREAR JOB OK";
 }
+
