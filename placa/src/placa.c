@@ -1,4 +1,7 @@
 #include "placa.h"
+#include "memoria_virtual.h"
+#include "servidor.h"
+#include "memoria.h"
 
 #include <utils/conexion.h>
 #include <utils/comunicacion.h>

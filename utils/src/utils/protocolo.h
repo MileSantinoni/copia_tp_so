@@ -17,8 +17,10 @@ typedef enum
     // PLANI <--> PLACA
     CREAR_JOB, //planificador crea job y se lo manda a la placa
     INIT_JOB,
-    ALLOC,
-    RESPUESTA_ALLOC,
+    ASIGNAR_ESPACIO, //alloc [jid,tamanio] -> responde una direccion logica
+    LIBERAR_ESPACIO, //Liberamos [jid, dir_logica]
+    CARGAR_PAGINA, //[jid, nro_pagina]
+
     // PLANI <--> CORE
     //DEVOLVER_CONTEXTO,
     DESPACHAR_JOB, // planificador despacha el job al core
@@ -45,13 +47,7 @@ typedef enum
     ESCRIBIR_MEMORIA, //[Jid, dir_fisica, Tamanio_contenido]
     RESPUESTA_ESCRITURA, //Placa responde que esta todo ok
     DESLOCKEAR_PAGINAS, // [Jid]
-
-    // Planificador <-> placa
-    ASIGNAR_ESPACIO, //alloc [jid,tamanio] -> responde una direccion logica
-    LIBERAR_ESPACIO, //Liberamos [jid, dir_logica]
-    CARGAR_PAGINA, //[jid, nro_pagina]
-
-    // Core <-> planificador
+      // Syscalls 
     SYSCALL_ALLOC, //[jid, tamanio]  respuesta a la syscall con la dir logica
     SYSCALL_FREE, // [jid, direccion logica] respuesta a la syscall
 

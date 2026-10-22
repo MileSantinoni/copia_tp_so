@@ -21,7 +21,6 @@
 // Variables compartidas
 extern t_log *logger;
 extern t_config *config;
-extern t_config_placa config_valores;
 
 // Configuración
 typedef struct
@@ -37,6 +36,8 @@ typedef struct
     int tam_offload;
     int retardo_offload;
 } t_config_placa;
+
+extern t_config_placa config_valores;
 
 // Entrada de tabla de páginas
 typedef struct
@@ -59,9 +60,17 @@ typedef struct
     int cantidad_instrucciones;
     t_list *tabla_de_paginas;
     uint32_t pagina_siguiente;
-    uint32_t tamanio_alloc;
+    t_list* asignaciones_de_espacio;
+    //uint32_t tamanio_alloc;
 } t_job;
 
+typedef struct
+{
+    u_int32_t direccion_logica;
+    u_int32_t cantidad_paginas;
+    u_int32_t tamanio;
+
+} t_asignacion_espacio;
 // Marco físico
 typedef struct
 {

@@ -13,7 +13,9 @@ extern pthread_mutex_t mutex_offload;
 
 void inicializar_offload(void);
 
+bool hay_espacio_sufiente_en_offload(int bloques_a_agregar);
 int obtener_bloque_offload_libre(void);
+bool reservar_bloques_offload(int bloques_a_agregar, int bloques_reservados[]);
 
 void liberar_bloque_offload(int nro_bloque);
 

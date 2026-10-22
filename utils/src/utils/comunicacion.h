@@ -36,6 +36,7 @@ typedef struct {
 	u_int32_t jid;
 	bool exito;
 	sem_t sem_respuesta;
+	void* respuesta; // guarda algun dato si lo necesita
 }t_solicitud_pendiente;
 
 extern t_list *solicitudes_pendientes;

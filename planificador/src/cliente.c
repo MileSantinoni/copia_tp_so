@@ -138,25 +138,45 @@ void *escuchar_placa_storage(void *arg)
             case RESPUESTA_SOLICITUD:
             {
                 t_list *paquete = recibir_paquete(socket_placa);
-                char *respuesta = (char *)list_get(paquete, 0);
-                uint32_t id_solicitud = *(uint32_t *)list_get(paquete, 1);
+                uint32_t id_solicitud = *(uint32_t *)list_get(paquete, 0);
+                char *respuesta = (char *)list_get(paquete, 1);
 
                 pthread_mutex_lock(&mutex_lista_sol_pendientes);
                 t_solicitud_pendiente *solicitud = buscar_solicitud_por_id_solicitud(solicitudes_pendientes, id_solicitud);
 
                 if (solicitud == NULL)
                 {
-                    log_error(logger,"No se encontro la solicitud pendiente con ID %u",id_solicitud);
+                    log_error(logger, "No se encontro la solicitud pendiente con ID %u", id_solicitud);
 
                     pthread_mutex_unlock(&mutex_lista_sol_pendientes);
                     list_destroy_and_destroy_elements(paquete, free);
                     break;
                 }
-                
+                // ACA IRIAN TODAS LAS RESPUESTAS
                 if (strcmp(respuesta, "CREAR JOB OK") == 0)
                 {
                     solicitud->exito = true;
-                } // ACA IRIAN TODAS LAS RESPUESTAS POSITIVAS
+                }
+                else if (strcmp(respuesta, "ASIGNAR_ESPACIO_OK") == 0)
+                {
+                    uint32_t* direccion_logica =  malloc(sizeof(u_int32_t));
+                    *direccion_logica = *(uint32_t *)list_get(paquete, 2);
+
+                    solicitud->exito = true;
+                    solicitud->respuesta=direccion_logica;
+                }
+                else if (strcmp(respuesta, "ASIGNAR_ESPACIO_ERROR") == 0)
+                {
+                    solicitud->exito = false;
+                }
+                else if (strcmp(respuesta, "LIBERACION_OK") == 0)
+                {
+                    solicitud->exito = true;
+                }
+                else
+                {
+                    log_info(logger, "Se envio una respuesta no correspondida");
+                }
 
                 sem_post(&solicitud->sem_respuesta);
 

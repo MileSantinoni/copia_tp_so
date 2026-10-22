@@ -86,8 +86,8 @@ void *atender_cliente(void *arg)
             // LE ENVIO LA RESPUESTA DE CREAR JOB
             // enviar_mensaje(mensaje, socket_cliente);
             t_paquete *paquete = crear_paquete(RESPUESTA_SOLICITUD);
-            agregar_a_paquete(paquete, mensaje, strlen(mensaje) + 1);
             agregar_a_paquete(paquete, &id_solicitud, sizeof(uint32_t));
+            agregar_a_paquete(paquete, mensaje, strlen(mensaje) + 1);
             enviar_paquete(paquete, socket_cliente);
             eliminar_paquete(paquete);
 
@@ -140,44 +140,6 @@ void *atender_cliente(void *arg)
             enviar_mensaje("CONFIRMACION_RECIBIDA", socket_cliente);
             break;
         }
-        case ALLOC: // Se carga la memoria pedida en disco
-        {
-            t_list *lista = recibir_paquete(socket_cliente);
-            uint32_t jid = *(uint32_t *)list_get(lista, 0);
-            uint32_t tamaño = *(uint32_t *)list_get(lista, 0);
-
-           /* int cantidad_paginas = tamaño / config_valores.tam_pagina;
-            if (tamaño % config_valores.tam_pagina != 0)
-            {
-                cantidad_paginas++;
-            }
-
-            //  FALTA --> RESERVAR ESPACIO EN OFFLOAF, si hay espacio hace lo que sigue sino no 
-
-            // Agrego a la tabla de paginas del job el nuevo registro
-            pthread_mutex_lock(&mutex_jobs);
-            t_job*job = dictionary_get(diccionario_jobs, string_itoa(jid));
-
-            t_tabla_de_paginas *registro_nuevo;
-            
-            u_int32_t pagina_inicial = job->pagina_siguiente;
-
-            for (int i = 0; i < cantidad_paginas; i++)
-            {
-                registro_nuevo = malloc(sizeof(t_tabla_de_paginas));
-                registro_nuevo->marco = -1;
-                registro_nuevo->nro_pagina = job->pagina_siguiente;
-                job->pagina_siguiente++;
-                registro_nuevo->presente = 0;
-                list_add(job->tabla_de_paginas, registro_nuevo);
-            }
-
-            pthread_mutex_unlock(&mutex_jobs);
-            t_paquete *paquete = crear_paquete(RESPUESTA_ALLOC);
-            agregar_a_paquete(paquete, &jid,sizeof(uint32_t));
-            u_int32_t direccion_logica = pagina_inicial *  config_valores.tam_pagina;
-            agregar_a_paquete(paquete,&direccion_logica, sizeof(u_int32_t));*/
-        }
 
         case PEDIR_TAM_PAGINA:
         {
@@ -205,13 +167,16 @@ void *atender_cliente(void *arg)
 
             usleep(config_valores.retardo_memoria * 1000);
 
-            if (entrada == NULL || !entrada->presencia) {
+            if (entrada == NULL || !entrada->presencia)
+            {
                 log_info(logger, "## (%u) - Page Fault en página: %u", jid, nro_pagina);
                 t_paquete *paquete = crear_paquete(RESPUESTA_PAGE_FAULT);
                 agregar_a_paquete(paquete, &nro_pagina, sizeof(uint32_t));
                 enviar_paquete(paquete, socket_cliente);
                 eliminar_paquete(paquete);
-            } else {
+            }
+            else
+            {
                 entrada->uso = true;
                 entrada->lockeada = true;
                 uint32_t marco = (uint32_t)entrada->marco;
@@ -241,7 +206,8 @@ void *atender_cliente(void *arg)
             pthread_mutex_unlock(&mutex_jobs);
 
             int marco = -1;
-            if (entrada != NULL) {
+            if (entrada != NULL)
+            {
                 marco = cargar_pagina_a_ram(jid, entrada);
             }
 
@@ -319,6 +285,7 @@ void *atender_cliente(void *arg)
             t_list *lista = recibir_paquete(socket_cliente);
             uint32_t jid = *(uint32_t *)list_get(lista, 0);
             uint32_t tamanio = *(uint32_t *)list_get(lista, 1);
+            uint32_t id_solicitud = *(uint32_t *)list_get(lista, 2);
 
             pthread_mutex_lock(&mutex_jobs);
             char *clave = string_itoa(jid);
@@ -326,13 +293,28 @@ void *atender_cliente(void *arg)
             free(clave);
 
             uint32_t dir_logica = 0;
-            if (job != NULL) {
-                dir_logica = asignar_paginas_job(job, tamanio);
+            if (job != NULL)
+            {
+                dir_logica = asignar_espacio_job(job, tamanio);
             }
             pthread_mutex_unlock(&mutex_jobs);
 
+            char *mensaje_rta = "ERROR EN JOB";
             t_paquete *paquete = crear_paquete(RESPUESTA_SOLICITUD);
-            agregar_a_paquete(paquete, &dir_logica, sizeof(uint32_t));
+            agregar_a_paquete(paquete, &id_solicitud, sizeof(id_solicitud));
+
+            if (dir_logica == UINT32_MAX) // No hay espacio en offload
+            {
+                mensaje_rta = "ASIGNAR_ESPACIO_ERROR";
+                agregar_a_paquete(paquete, mensaje_rta, strlen(mensaje_rta) + 1);
+            }
+            else
+            {
+                mensaje_rta = "ASIGNAR_ESPACIO_OK";
+                agregar_a_paquete(paquete, mensaje_rta, strlen(mensaje_rta));
+                agregar_a_paquete(paquete, &dir_logica, sizeof(uint32_t));
+            }
+
             enviar_paquete(paquete, socket_cliente);
             eliminar_paquete(paquete);
 
@@ -345,20 +327,23 @@ void *atender_cliente(void *arg)
             t_list *lista = recibir_paquete(socket_cliente);
             uint32_t jid = *(uint32_t *)list_get(lista, 0);
             uint32_t dir_logica = *(uint32_t *)list_get(lista, 1);
+            uint32_t id_solicitud = *(uint32_t *)list_get(lista, 2);
 
             pthread_mutex_lock(&mutex_jobs);
             char *clave = string_itoa(jid);
             t_job *job = dictionary_get(diccionario_jobs, clave);
             free(clave);
 
-            if (job != NULL) {
-                uint32_t tamanio_a_liberar = job->tamanio_alloc - dir_logica;
-                liberar_espacio_job(job, tamanio_a_liberar);
+            if (job != NULL)
+            {
+                // uint32_t tamanio_a_liberar = job->tamanio_alloc - dir_logica;
+                liberar_espacio_job(job, dir_logica);
             }
             pthread_mutex_unlock(&mutex_jobs);
 
             t_paquete *paquete = crear_paquete(RESPUESTA_SOLICITUD);
-            char *ok_msg = "LIBERADO_OK";
+             agregar_a_paquete(paquete, &id_solicitud, sizeof(id_solicitud));
+            char *ok_msg = "LIBERACION_OK";
             agregar_a_paquete(paquete, ok_msg, strlen(ok_msg) + 1);
             enviar_paquete(paquete, socket_cliente);
             eliminar_paquete(paquete);
@@ -375,5 +360,4 @@ void *atender_cliente(void *arg)
 
     close(socket_cliente);
     return NULL;
-
 }
