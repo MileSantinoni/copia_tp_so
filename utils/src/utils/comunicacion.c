@@ -257,6 +257,7 @@ t_solicitud_pendiente *crear_solicitud_pendiente(u_int32_t jid, int operacion)
 	solicitud_nueva->operacion = operacion;
 	solicitud_nueva->exito = false;
 	sem_init(&solicitud_nueva->sem_respuesta, 0, 0);
+	solicitud_nueva->respuesta = NULL;
 
 	pthread_mutex_lock(&mutex_lista_sol_pendientes);
 	list_add(solicitudes_pendientes, solicitud_nueva);
@@ -267,20 +268,31 @@ t_solicitud_pendiente *crear_solicitud_pendiente(u_int32_t jid, int operacion)
 
 void eliminar_solicitud_pendiente(t_solicitud_pendiente *peticion)
 {
+
+	pthread_mutex_lock(&mutex_lista_sol_pendientes);
+
+	list_remove_element(
+		solicitudes_pendientes,
+		peticion);
+
+	pthread_mutex_unlock(&mutex_lista_sol_pendientes);
+
 	sem_destroy(&peticion->sem_respuesta);
+	free(peticion->respuesta);
 	free(peticion);
 }
 
-t_solicitud_pendiente*  buscar_solicitud_por_id_solicitud(t_list*  solicitudes_pendientes, u_int32_t id){
+t_solicitud_pendiente *buscar_solicitud_por_id_solicitud(t_list *solicitudes_pendientes, u_int32_t id)
+{
 
 	for (int i = 0; i < list_size(solicitudes_pendientes); i++)
-    {
-        t_solicitud_pendiente *solicitud_actual = (t_solicitud_pendiente *)list_get(solicitudes_pendientes, i);
+	{
+		t_solicitud_pendiente *solicitud_actual = (t_solicitud_pendiente *)list_get(solicitudes_pendientes, i);
 
-        if (solicitud_actual->id_solicitd== id)
-        {
-            return solicitud_actual;
-        }
-    }
-    return NULL;
+		if (solicitud_actual->id_solicitd == id)
+		{
+			return solicitud_actual;
+		}
+	}
+	return NULL;
 }

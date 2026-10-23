@@ -163,7 +163,7 @@ t_asignacion_espacio *buscar_asignacion_por_dl(t_list *asignaciones_de_espacio, 
     return NULL;
 }
 
-void liberar_espacio_job(t_job *job, uint32_t dir_logica)
+char *liberar_espacio_job(t_job *job, uint32_t dir_logica)
 {
     // uint32_t paginas_a_liberar = (tamanio + config_valores.tam_pagina - 1) / config_valores.tam_pagina;
 
@@ -172,7 +172,7 @@ void liberar_espacio_job(t_job *job, uint32_t dir_logica)
     if (espacio_a_eliminar == NULL)
     {
         log_error(logger, "JID: %u - No existe una asignación en la dirección lógica %u", job->jid, dir_logica);
-        return;
+        return "LIBERACION_DE_ESPACIO_ERROR";
     }
 
     for (int i = 0; i < espacio_a_eliminar->cantidad_paginas; i++)
@@ -183,17 +183,20 @@ void liberar_espacio_job(t_job *job, uint32_t dir_logica)
         {
             t_entrada_pagina *entrada = buscar_pagina(job, nro_pagina);
 
-            if (entrada != NULL)
+            if (entrada == NULL)
             {
-                // Eliminamos la página de la tabla de paginas
-                list_remove_element(job->tabla_de_paginas, entrada);
-                // Liberamos el marco de memoria si estaba ocupado
-                liberar_marco(entrada->marco);
-                // Liberamos el espacio de offload
-                liberar_bloque_offload(entrada->posicion_offload);
-                // Lo elimanamos de la memoria real
-                free(entrada);
+                log_error(logger," JID: %u - ERROR INTERNO: No se encontró la página %u al liberar la dirección lógica %u", job->jid, nro_pagina, dir_logica);
+
+                return "LIBERACION_DE_ESPACIO_ERROR";
             }
+            // Eliminamos la página de la tabla de paginas
+            list_remove_element(job->tabla_de_paginas, entrada);
+            // Liberamos el marco de memoria si estaba ocupado
+            liberar_marco(entrada->marco);
+            // Liberamos el espacio de offload
+            liberar_bloque_offload(entrada->posicion_offload);
+            // Lo elimanamos de la memoria real
+            free(entrada);
         }
     }
 
@@ -202,6 +205,7 @@ void liberar_espacio_job(t_job *job, uint32_t dir_logica)
 
     list_remove_element(job->asignaciones_de_espacio, espacio_a_eliminar);
     free(espacio_a_eliminar);
+    return "LIBERACION_DE_ESPACIO_OK";
 }
 
 // Acceso a memoria física

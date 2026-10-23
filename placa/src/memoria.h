@@ -25,7 +25,7 @@ void liberar_entrada_pagina(void *elem);
 // ALLOC y FREE
 uint32_t asignar_espacio_job(t_job *job,uint32_t tamanio);
 
-void liberar_espacio_job(t_job *job, uint32_t tamanio);
+char* liberar_espacio_job(t_job *job, uint32_t tamanio);
 
 // Consulta de páginas
 int traducir_y_obtener_marco(uint32_t jid, uint32_t nro_pagina);

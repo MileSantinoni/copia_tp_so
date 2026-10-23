@@ -78,7 +78,7 @@ char *crear_job_en_placa(uint32_t jid, char *nombre_archivo)
     job->instrucciones = NULL;
     job->cantidad_instrucciones = 0;
     job->tabla_de_paginas = list_create();
-   // job->tamanio_alloc = 0;
+    job->asignaciones_de_espacio = list_create();
     job->pagina_siguiente=0;
     char *linea = NULL;
     size_t len = 0;

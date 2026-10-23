@@ -169,17 +169,20 @@ void *escuchar_placa_storage(void *arg)
                 {
                     solicitud->exito = false;
                 }
-                else if (strcmp(respuesta, "LIBERACION_OK") == 0)
+                else if (strcmp(respuesta, "LIBERACION_DE_ESPACIO_OK") == 0)
                 {
                     solicitud->exito = true;
                 }
+                 else if (strcmp(respuesta, "LIBERACION_DE_ESPACIO_ERROR") == 0)
+                {
+                    solicitud->exito = true;
+                }v
                 else
                 {
-                    log_info(logger, "Se envio una respuesta no correspondida");
+                    log_error(logger,"Respuesta desconocida: %s - Solicitud: %u - Operacion: %d",respuesta,solicitud->id_solicitd,solicitud->operacion);
                 }
 
                 sem_post(&solicitud->sem_respuesta);
-
                 pthread_mutex_unlock(&mutex_lista_sol_pendientes);
 
                 list_destroy_and_destroy_elements(paquete, free);
