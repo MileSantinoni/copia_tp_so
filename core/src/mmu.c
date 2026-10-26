@@ -519,3 +519,434 @@ bool mmu_set_tamanio_pagina(uint32_t nuevo_tamanio_pagina)
 
     return true;
 }
+
+
+// traduccion de rangos 
+
+static t_segmento_fisico *crear_segmento_fisico(
+    uint32_t direccion_fisica,
+    uint32_t tamanio
+)
+{
+    t_segmento_fisico *segmento = malloc(sizeof(t_segmento_fisico));
+
+    if (segmento == NULL)
+    {
+        return NULL;
+    }
+
+    segmento->direccion_fisica = direccion_fisica;
+    segmento->tamanio = tamanio;
+
+    return segmento;
+}
+
+void mmu_destruir_segmentos(t_list *segmentos_fisicos)
+{
+    if (segmentos_fisicos != NULL)
+    {
+        list_destroy_and_destroy_elements(
+            segmentos_fisicos,
+            free
+        );
+    }
+}
+
+t_resultado_mmu mmu_traducir_rango(
+    int socket_placa,
+    uint32_t jid,
+    uint32_t direccion_logica,
+    uint32_t tamanio,
+    t_list **segmentos_fisicos
+)
+{
+    if (segmentos_fisicos == NULL ||
+        tamanio == 0 ||
+        mmu_get_tamanio_pagina() == 0)
+    {
+        return MMU_ERROR;
+    }
+
+    *segmentos_fisicos = list_create();
+
+    if (*segmentos_fisicos == NULL)
+    {
+        return MMU_ERROR;
+    }
+
+    uint32_t pagina = mmu_get_tamanio_pagina();
+    uint32_t restante = tamanio;
+    uint32_t direccion_actual = direccion_logica;
+
+    while (restante > 0)
+    {
+        t_traduccion_mmu traduccion;
+
+        t_resultado_mmu resultado =
+            mmu_traducir_direccion(
+                socket_placa,
+                jid,
+                direccion_actual,
+                &traduccion
+            );
+
+        if (resultado != MMU_OK)
+        {
+            mmu_destruir_segmentos(*segmentos_fisicos);
+            *segmentos_fisicos = NULL;
+            return resultado;
+        }
+
+        uint32_t espacio_en_pagina =
+            pagina - traduccion.desplazamiento;
+
+        uint32_t tamanio_segmento =
+            restante < espacio_en_pagina
+                ? restante
+                : espacio_en_pagina;
+
+        t_segmento_fisico *segmento =
+            crear_segmento_fisico(
+                traduccion.direccion_fisica,
+                tamanio_segmento
+            );
+
+        if (segmento == NULL)
+        {
+            mmu_destruir_segmentos(*segmentos_fisicos);
+            *segmentos_fisicos = NULL;
+            return MMU_ERROR;
+        }
+
+        list_add(*segmentos_fisicos, segmento);
+
+        direccion_actual += tamanio_segmento;
+        restante -= tamanio_segmento;
+    }
+
+    return MMU_OK;
+}
+
+// lectura y escritura de rangos 
+static t_resultado_mmu leer_segmento_fisico(
+    int socket_placa,
+    uint32_t jid,
+    t_segmento_fisico *segmento,
+    void *destino
+)
+{
+    if (segmento == NULL || destino == NULL)
+    {
+        return MMU_ERROR;
+    }
+
+    t_paquete *paquete =
+        crear_paquete(LEER_MEMORIA);
+
+    if (paquete == NULL)
+    {
+        return MMU_ERROR;
+    }
+
+    agregar_a_paquete(
+        paquete,
+        &jid,
+        sizeof(uint32_t)
+    );
+
+    agregar_a_paquete(
+        paquete,
+        &segmento->direccion_fisica,
+        sizeof(uint32_t)
+    );
+
+    agregar_a_paquete(
+        paquete,
+        &segmento->tamanio,
+        sizeof(uint32_t)
+    );
+
+    enviar_paquete(paquete, socket_placa);
+    eliminar_paquete(paquete);
+
+    int codigo = recibir_operacion(socket_placa);
+
+    if (codigo != RESPUESTA_LECTURA)
+    {
+        if (logger != NULL)
+        {
+            log_error(
+                logger,
+                "## JID: %u - Respuesta inválida de lectura: %d",
+                jid,
+                codigo
+            );
+        }
+
+        return MMU_ERROR;
+    }
+
+    t_list *respuesta =
+        recibir_paquete(socket_placa);
+
+    if (respuesta == NULL ||
+        list_size(respuesta) < 1)
+    {
+        if (respuesta != NULL)
+        {
+            list_destroy_and_destroy_elements(
+                respuesta,
+                free
+            );
+        }
+
+        return MMU_ERROR;
+    }
+
+    void *contenido = list_get(respuesta, 0);
+
+    if (contenido == NULL)
+    {
+        list_destroy_and_destroy_elements(
+            respuesta,
+            free
+        );
+
+        return MMU_ERROR;
+    }
+
+    memcpy(
+        destino,
+        contenido,
+        segmento->tamanio
+    );
+
+    list_destroy_and_destroy_elements(
+        respuesta,
+        free
+    );
+
+    return MMU_OK;
+}
+
+static t_resultado_mmu escribir_segmento_fisico(
+    int socket_placa,
+    uint32_t jid,
+    t_segmento_fisico *segmento,
+    const void *origen
+)
+{
+    if (segmento == NULL || origen == NULL)
+    {
+        return MMU_ERROR;
+    }
+
+    t_paquete *paquete =
+        crear_paquete(ESCRIBIR_MEMORIA);
+
+    if (paquete == NULL)
+    {
+        return MMU_ERROR;
+    }
+
+    agregar_a_paquete(
+        paquete,
+        &jid,
+        sizeof(uint32_t)
+    );
+
+    agregar_a_paquete(
+        paquete,
+        &segmento->direccion_fisica,
+        sizeof(uint32_t)
+    );
+
+    agregar_a_paquete(
+        paquete,
+        &segmento->tamanio,
+        sizeof(uint32_t)
+    );
+
+    agregar_a_paquete(
+        paquete,
+        (void *)origen,
+        segmento->tamanio
+    );
+
+    enviar_paquete(paquete, socket_placa);
+    eliminar_paquete(paquete);
+
+    int codigo = recibir_operacion(socket_placa);
+
+    if (codigo != RESPUESTA_ESCRITURA)
+    {
+        if (logger != NULL)
+        {
+            log_error(
+                logger,
+                "## JID: %u - Respuesta inválida de escritura: %d",
+                jid,
+                codigo
+            );
+        }
+
+        return MMU_ERROR;
+    }
+
+    return MMU_OK;
+}
+
+t_resultado_mmu mmu_leer_rango(
+    int socket_placa,
+    uint32_t jid,
+    uint32_t direccion_logica,
+    uint32_t tamanio,
+    void *buffer_destino
+)
+{
+    if (buffer_destino == NULL || tamanio == 0)
+    {
+        return MMU_ERROR;
+    }
+
+    t_list *segmentos = NULL;
+
+    t_resultado_mmu resultado =
+        mmu_traducir_rango(
+            socket_placa,
+            jid,
+            direccion_logica,
+            tamanio,
+            &segmentos
+        );
+
+    if (resultado != MMU_OK)
+    {
+        return resultado;
+    }
+
+    uint32_t desplazamiento_buffer = 0;
+
+    for (int i = 0; i < list_size(segmentos); i++)
+    {
+        t_segmento_fisico *segmento =
+            list_get(segmentos, i);
+
+        resultado =
+            leer_segmento_fisico(
+                socket_placa,
+                jid,
+                segmento,
+                (char *)buffer_destino +
+                    desplazamiento_buffer
+            );
+
+        if (resultado != MMU_OK)
+        {
+            mmu_destruir_segmentos(segmentos);
+            return resultado;
+        }
+
+        desplazamiento_buffer += segmento->tamanio;
+    }
+
+    mmu_destruir_segmentos(segmentos);
+
+    return MMU_OK;
+}
+
+t_resultado_mmu mmu_escribir_rango(
+    int socket_placa,
+    uint32_t jid,
+    uint32_t direccion_logica,
+    uint32_t tamanio,
+    const void *buffer_origen
+)
+{
+    if (buffer_origen == NULL || tamanio == 0)
+    {
+        return MMU_ERROR;
+    }
+
+    t_list *segmentos = NULL;
+
+    t_resultado_mmu resultado =
+        mmu_traducir_rango(
+            socket_placa,
+            jid,
+            direccion_logica,
+            tamanio,
+            &segmentos
+        );
+
+    if (resultado != MMU_OK)
+    {
+        return resultado;
+    }
+
+    uint32_t desplazamiento_buffer = 0;
+
+    for (int i = 0; i < list_size(segmentos); i++)
+    {
+        t_segmento_fisico *segmento =
+            list_get(segmentos, i);
+
+        resultado =
+            escribir_segmento_fisico(
+                socket_placa,
+                jid,
+                segmento,
+                (const char *)buffer_origen +
+                    desplazamiento_buffer
+            );
+
+        if (resultado != MMU_OK)
+        {
+            mmu_destruir_segmentos(segmentos);
+            return resultado;
+        }
+
+        desplazamiento_buffer += segmento->tamanio;
+    }
+
+    mmu_destruir_segmentos(segmentos);
+
+    return MMU_OK;
+}
+
+t_resultado_mmu mmu_leer_uint32(
+    int socket_placa,
+    uint32_t jid,
+    uint32_t direccion_logica,
+    uint32_t *valor
+)
+{
+    if (valor == NULL)
+    {
+        return MMU_ERROR;
+    }
+
+    return mmu_leer_rango(
+        socket_placa,
+        jid,
+        direccion_logica,
+        sizeof(uint32_t),
+        valor
+    );
+}
+
+t_resultado_mmu mmu_escribir_uint32(
+    int socket_placa,
+    uint32_t jid,
+    uint32_t direccion_logica,
+    uint32_t valor
+)
+{
+    return mmu_escribir_rango(
+        socket_placa,
+        jid,
+        direccion_logica,
+        sizeof(uint32_t),
+        &valor
+    );
+}

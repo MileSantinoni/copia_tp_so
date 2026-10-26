@@ -26,6 +26,16 @@ typedef struct
     uint32_t direccion_fisica;
 } t_traduccion_mmu;
 
+// una porcion fisicamente contigua de un acceso lógico 
+typedef struct
+{
+    uint32_t direccion_fisica;
+    uint32_t tamanio;
+} t_segmento_fisico;
+
+
+
+
 //solicita el tamaño de la página a placa
 bool mmu_inicializar(int socket_placa);
 
@@ -47,6 +57,46 @@ t_resultado_mmu mmu_traducir_direccion(
     uint32_t jid,
     uint32_t direccion_logica,
     t_traduccion_mmu *traduccion
+);
+
+t_resultado_mmu mmu_traducir_rango(
+    int socket_placa,
+    uint32_t jid,
+    uint32_t direccion_logica,
+    uint32_t tamanio,
+    t_list **segmentos_fisicos
+);
+
+void mmu_destruir_segmentos(t_list *segmentos_fisicos);
+
+t_resultado_mmu mmu_leer_rango(
+    int socket_placa,
+    uint32_t jid,
+    uint32_t direccion_logica,
+    uint32_t tamanio,
+    void *buffer_destino
+);
+
+t_resultado_mmu mmu_escribir_rango(
+    int socket_placa,
+    uint32_t jid,
+    uint32_t direccion_logica,
+    uint32_t tamanio,
+    const void *buffer_origen
+);
+
+t_resultado_mmu mmu_leer_uint32(
+    int socket_placa,
+    uint32_t jid,
+    uint32_t direccion_logica,
+    uint32_t *valor
+);
+
+t_resultado_mmu mmu_escribir_uint32(
+    int socket_placa,
+    uint32_t jid,
+    uint32_t direccion_logica,
+    uint32_t valor
 );
 
 

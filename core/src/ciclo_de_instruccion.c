@@ -10,6 +10,7 @@
 #include "registro.h"
 #include "ciclo_de_instruccion.h"
 #include "registro.h"
+#include "mmu.h"
 #include <utils/comunicacion.h>
 #include <utils/protocolo.h>
 
@@ -29,7 +30,6 @@ void ciclo_de_instruccion(int socket_dispatch, int socket_placa, uint32_t jid)
         enviar_paquete(paquete_fetch, socket_placa);
         eliminar_paquete(paquete_fetch);
 
-        
         int cod_op = recibir_operacion(socket_placa);
 
         if (cod_op != MENSAJE)
@@ -47,8 +47,10 @@ void ciclo_de_instruccion(int socket_dispatch, int socket_placa, uint32_t jid)
             break;
         }
 
-    
         log_info(logger, "## Instruccion recibida: %s", instruccion);
+
+        // acá debería ir forward, backward y update
+        // TODO
 
         //  fase decode y execute
 
@@ -64,9 +66,44 @@ void ciclo_de_instruccion(int socket_dispatch, int socket_placa, uint32_t jid)
         }
 
         t_resultado_ejecucion resultado =
-            ejecutar_instruccion(instruccion_decodificada, jid);
+            ejecutar_instruccion(instruccion_decodificada, jid, socket_placa, socket_dispatch);
 
-        destruir_instruccion(instruccion_decodificada);
+            destruir_instruccion(instruccion_decodificada);
+
+        if (resultado == EJECUCION_PAGE_FAULT)
+        {
+
+            log_info(
+                logger,
+                "## JID: %u - Devolviendo contexto por Page Fault en PC: %u",
+                jid,
+                registros_cpu.PC);
+
+            enviar_desalojo(
+                socket_dispatch,
+                jid,
+                &registros_cpu,
+                PAGE_FAULT);
+
+            ejecutando = 0;
+            continue;
+        }
+
+        if (resultado == EJECUCION_ERROR)
+        {
+            log_error(
+                logger,
+                "## JID: %u - Error ejecutando instrucción",
+                jid);
+
+            mmu_deslockear_paginas(
+                socket_placa,
+                jid);
+
+            ejecutando = 0;
+            continue;
+        }
+
 
         if (resultado == EJECUCION_FINALIZADA)
         {
@@ -103,17 +140,16 @@ void ciclo_de_instruccion(int socket_dispatch, int socket_placa, uint32_t jid)
         }
 
         // chequeamos interrupt
-        
-        if (tomar_interrupcion_para_jid(jid, &motivo)) {
+
+        if (tomar_interrupcion_para_jid(jid, &motivo))
+        {
             log_info(logger, "## Interrupción válida para JID: %u - Motivo: %s", jid, motivo_de_desalojo_a_string(motivo));
 
-
             // devuelvo el contexto actualizado al planificador por desalojo
-            // TODO revisar si acá iría un envio con motivo 
+            // TODO revisar si acá iría un envio con motivo
             enviar_desalojo(socket_dispatch, jid, &registros_cpu, motivo);
             ejecutando = 0;
         }
-        
     }
 }
 
@@ -201,14 +237,14 @@ uint32_t obtener_valor_operando(char *operando)
 }
 // INIT_JOB es una syscall no bloqueante: el Core se la pide al Planificador,
 // espera la respuesta y sigue ejecutando el mismo Job (no devuelve el contexto).
-static void syscall_init_job(uint32_t jid, char *archivo){
+static void syscall_init_job(uint32_t jid, char *archivo)
+{
     // paso 1 le pido al planificador que cree el job [jid que la pide][nombre del archivo]
-    t_paquete * paquete = crear_paquete(INIT_JOB);
+    t_paquete *paquete = crear_paquete(INIT_JOB);
     agregar_a_paquete(paquete, &jid, sizeof(uint32_t));
-    agregar_a_paquete (paquete, archivo, strlen(archivo)+1);
+    agregar_a_paquete(paquete, archivo, strlen(archivo) + 1);
     enviar_paquete(paquete, socket_dispatch);
     eliminar_paquete(paquete);
-
 
     // 2. Espero la respuesta, recibir_operacion es bloqueante: el Core se queda
     //    acá hasta que el Planificador termine de crear el Job.
@@ -218,15 +254,16 @@ static void syscall_init_job(uint32_t jid, char *archivo){
         log_error(logger, "## JID: %u - Se esperaba RESPUESTA_SYSCALL y llegó op_code %d", jid, cod_op);
         return;
     }
-     // 3 Leo el paquete de la respuesta para dejar el socket limpio
+    // 3 Leo el paquete de la respuesta para dejar el socket limpio
     t_list *respuesta = recibir_paquete(socket_dispatch);
     list_destroy_and_destroy_elements(respuesta, free);
-
-
 }
+
 t_resultado_ejecucion ejecutar_instruccion(
     t_instruccion *instruccion,
-    uint32_t jid)
+    uint32_t jid,
+    int socket_placa,
+    int socket_dispatch)
 {
     if (instruccion == NULL)
     {
@@ -248,7 +285,7 @@ t_resultado_ejecucion ejecutar_instruccion(
         log_info(logger, "## JID: %u - Ejecutando: %s", jid, instruccion->nombre);
 
     free(parametros);
-    
+
     if (strcmp(instruccion->nombre, "NOOP") == 0)
     {
         return EJECUCION_CONTINUA;
@@ -377,7 +414,344 @@ t_resultado_ejecucion ejecutar_instruccion(
         return EJECUCION_CONTINUA;
     }
 
-    log_warning(logger,"## JID: %u - Instrucción no implementada: %s",jid,  instruccion->nombre);
+    //TODO: revisar estas implementaciones de forward, backward y update
+    if (strcmp(instruccion->nombre, "FORWARD") == 0)
+    {
+        if (instruccion->cantidad_parametros != 4)
+            {
+                log_error(logger, "FORWARD requiere 4 parámetros");
+                return EJECUCION_ERROR;
+            }
+
+            uint32_t direccion_pesos =
+                obtener_valor_operando(instruccion->parametros[0]);
+
+            uint32_t direccion_entrada =
+                obtener_valor_operando(instruccion->parametros[1]);
+
+            uint32_t direccion_salida =
+                obtener_valor_operando(instruccion->parametros[2]);
+
+            uint32_t direccion_acumulador =
+                obtener_valor_operando(instruccion->parametros[3]);
+
+            uint32_t pesos;
+            uint32_t entrada;
+            uint32_t acumulador;
+
+            t_resultado_mmu resultado =
+                mmu_leer_uint32(
+                    socket_placa,
+                    jid,
+                    direccion_pesos,
+                    &pesos);
+
+            if (resultado == MMU_PAGE_FAULT)
+            {
+                mmu_deslockear_paginas(socket_placa, jid);
+                return EJECUCION_PAGE_FAULT;
+            }
+
+            if (resultado != MMU_OK)
+            {
+                mmu_deslockear_paginas(socket_placa, jid);
+                return EJECUCION_ERROR;
+            }
+
+            resultado =
+                mmu_leer_uint32(
+                    socket_placa,
+                    jid,
+                    direccion_entrada,
+                    &entrada);
+
+            if (resultado == MMU_PAGE_FAULT)
+            {
+                mmu_deslockear_paginas(socket_placa, jid);
+                return EJECUCION_PAGE_FAULT;
+            }
+
+            if (resultado != MMU_OK)
+            {
+                mmu_deslockear_paginas(socket_placa, jid);
+                return EJECUCION_ERROR;
+            }
+
+            resultado =
+                mmu_leer_uint32(
+                    socket_placa,
+                    jid,
+                    direccion_acumulador,
+                    &acumulador);
+
+            if (resultado == MMU_PAGE_FAULT)
+            {
+                mmu_deslockear_paginas(socket_placa, jid);
+                return EJECUCION_PAGE_FAULT;
+            }
+
+            if (resultado != MMU_OK)
+            {
+                mmu_deslockear_paginas(socket_placa, jid);
+                return EJECUCION_ERROR;
+            }
+
+            uint32_t nuevo_acumulador =
+                acumulador + pesos * entrada;
+
+            resultado =
+                mmu_escribir_uint32(
+                    socket_placa,
+                    jid,
+                    direccion_salida,
+                    nuevo_acumulador);
+
+            if (resultado == MMU_PAGE_FAULT)
+            {
+                mmu_deslockear_paginas(socket_placa, jid);
+                return EJECUCION_PAGE_FAULT;
+            }
+
+            if (resultado != MMU_OK)
+            {
+                mmu_deslockear_paginas(socket_placa, jid);
+                return EJECUCION_ERROR;
+            }
+
+            registros_cpu.E1 = pesos;
+            registros_cpu.E2 = entrada;
+            registros_cpu.E3 = nuevo_acumulador;
+
+            mmu_deslockear_paginas(socket_placa, jid);
+
+            return EJECUCION_CONTINUA;
+    }
+
+
+    if (strcmp(instruccion->nombre, "BACKWARD") == 0)
+    {
+        if (instruccion->cantidad_parametros != 4)
+            {
+                log_error(logger, "BACKWARD requiere 4 parámetros");
+                return EJECUCION_ERROR;
+            }
+
+            uint32_t direccion_pesos =
+                obtener_valor_operando(instruccion->parametros[0]);
+
+            uint32_t direccion_activaciones =
+                obtener_valor_operando(instruccion->parametros[1]);
+
+            uint32_t direccion_gradientes =
+                obtener_valor_operando(instruccion->parametros[2]);
+
+            uint32_t direccion_acumulador =
+                obtener_valor_operando(instruccion->parametros[3]);
+
+            uint32_t pesos;
+            uint32_t activaciones;
+            uint32_t acumulador;
+
+            t_resultado_mmu resultado =
+                mmu_leer_uint32(
+                    socket_placa,
+                    jid,
+                    direccion_pesos,
+                    &pesos);
+
+            if (resultado != MMU_OK)
+            {
+                mmu_deslockear_paginas(socket_placa, jid);
+                return resultado == MMU_PAGE_FAULT
+                           ? EJECUCION_PAGE_FAULT
+                           : EJECUCION_ERROR;
+            }
+
+            resultado =
+                mmu_leer_uint32(
+                    socket_placa,
+                    jid,
+                    direccion_activaciones,
+                    &activaciones);
+
+            if (resultado != MMU_OK)
+            {
+                mmu_deslockear_paginas(socket_placa, jid);
+                return resultado == MMU_PAGE_FAULT
+                           ? EJECUCION_PAGE_FAULT
+                           : EJECUCION_ERROR;
+            }
+
+            resultado =
+                mmu_leer_uint32(
+                    socket_placa,
+                    jid,
+                    direccion_acumulador,
+                    &acumulador);
+
+            if (resultado != MMU_OK)
+            {
+                mmu_deslockear_paginas(socket_placa, jid);
+                return resultado == MMU_PAGE_FAULT
+                           ? EJECUCION_PAGE_FAULT
+                           : EJECUCION_ERROR;
+            }
+
+            uint32_t nuevo_acumulador =
+                acumulador - pesos * activaciones;
+
+            resultado =
+                mmu_escribir_uint32(
+                    socket_placa,
+                    jid,
+                    direccion_gradientes,
+                    nuevo_acumulador);
+
+            if (resultado != MMU_OK)
+            {
+                mmu_deslockear_paginas(socket_placa, jid);
+                return resultado == MMU_PAGE_FAULT
+                           ? EJECUCION_PAGE_FAULT
+                           : EJECUCION_ERROR;
+            }
+
+            registros_cpu.E1 = pesos;
+            registros_cpu.E2 = activaciones;
+            registros_cpu.E3 = nuevo_acumulador;
+
+            mmu_deslockear_paginas(socket_placa, jid);
+
+            return EJECUCION_CONTINUA;
+    }
+
+    
+    if (strcmp(instruccion->nombre, "UPDATE") == 0)
+    {
+        if (instruccion->cantidad_parametros != 4)
+            {
+                log_error(logger, "BACKWARD requiere 4 parámetros");
+                return EJECUCION_ERROR;
+            }
+
+            uint32_t direccion_pesos =
+                obtener_valor_operando(instruccion->parametros[0]);
+
+            uint32_t direccion_activaciones =
+                obtener_valor_operando(instruccion->parametros[1]);
+
+            uint32_t direccion_gradientes =
+                obtener_valor_operando(instruccion->parametros[2]);
+
+            uint32_t direccion_acumulador =
+                obtener_valor_operando(instruccion->parametros[3]);
+
+            uint32_t pesos;
+            uint32_t activaciones;
+            uint32_t acumulador;
+
+            t_resultado_mmu resultado =
+                mmu_leer_uint32(
+                    socket_placa,
+                    jid,
+                    direccion_pesos,
+                    &pesos);
+
+            if (resultado != MMU_OK)
+            {
+                mmu_deslockear_paginas(socket_placa, jid);
+                return resultado == MMU_PAGE_FAULT
+                           ? EJECUCION_PAGE_FAULT
+                           : EJECUCION_ERROR;
+            }
+
+            resultado =
+                mmu_leer_uint32(
+                    socket_placa,
+                    jid,
+                    direccion_activaciones,
+                    &activaciones);
+
+            if (resultado != MMU_OK)
+            {
+                mmu_deslockear_paginas(socket_placa, jid);
+                return resultado == MMU_PAGE_FAULT
+                           ? EJECUCION_PAGE_FAULT
+                           : EJECUCION_ERROR;
+            }
+
+            resultado =
+                mmu_leer_uint32(
+                    socket_placa,
+                    jid,
+                    direccion_acumulador,
+                    &acumulador);
+
+            if (resultado != MMU_OK)
+            {
+                mmu_deslockear_paginas(socket_placa, jid);
+                return resultado == MMU_PAGE_FAULT
+                           ? EJECUCION_PAGE_FAULT
+                           : EJECUCION_ERROR;
+            }
+
+            uint32_t nuevo_acumulador =
+                acumulador - pesos * activaciones;
+
+            resultado =
+                mmu_escribir_uint32(
+                    socket_placa,
+                    jid,
+                    direccion_gradientes,
+                    nuevo_acumulador);
+
+            if (resultado != MMU_OK)
+            {
+                mmu_deslockear_paginas(socket_placa, jid);
+                return resultado == MMU_PAGE_FAULT
+                           ? EJECUCION_PAGE_FAULT
+                           : EJECUCION_ERROR;
+            }
+
+            registros_cpu.E1 = pesos;
+            registros_cpu.E2 = activaciones;
+            registros_cpu.E3 = nuevo_acumulador;
+
+            mmu_deslockear_paginas(socket_placa, jid);
+
+            return EJECUCION_CONTINUA;
+    }
+
+    log_warning(logger, "## JID: %u - Instrucción no implementada: %s", jid, instruccion->nombre);
 
     return EJECUCION_CONTINUA;
 }
+
+
+
+//  // FORWARD
+//         static t_resultado_ejecucion ejecutar_forward(
+//             t_instruccion * instruccion,
+//             uint32_t jid,
+//             int socket_placa)
+//         {
+            
+//         }
+
+
+//  // BACKWARD
+//         static t_resultado_ejecucion ejecutar_backward(
+//             t_instruccion * instruccion,
+//             uint32_t jid,
+//             int socket_placa)
+//         {
+            
+//         }
+
+//  // UPDATE
+//         static t_resultado_ejecucion ejecutar_backward(
+//             t_instruccion * instruccion,
+//             uint32_t jid,
+//             int socket_placa)
+//         {
+            
+//         }

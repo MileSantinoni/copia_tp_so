@@ -13,7 +13,10 @@ extern t_config* config;
 typedef enum {
     EJECUCION_CONTINUA,
     EJECUCION_FINALIZADA,
-    EJECUCION_DESALOJADA
+    EJECUCION_DESALOJADA,
+    EJECUCION_PAGE_FAULT,
+    EJECUCION_BLOQUEADA,
+    EJECUCION_ERROR
 } t_resultado_ejecucion;
 
 typedef struct {
@@ -29,7 +32,9 @@ uint32_t obtener_valor_operando(char *operando);
 
 t_resultado_ejecucion ejecutar_instruccion(
     t_instruccion *instruccion,
-    uint32_t jid
+    uint32_t jid,
+    int socket_placa,
+    int socket_dispatch
 );
 
 
