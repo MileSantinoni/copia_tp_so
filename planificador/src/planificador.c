@@ -3,6 +3,7 @@
 #include "planificador.h"
 #include "plani_corto_plazo.h"
 #include "plani_largo_plazo.h"
+#include "bloqueos.h"
 
 #include <stdlib.h>
 #include <pthread.h>
@@ -100,6 +101,7 @@ int main(int argc, char *argv[])
     // Parte cliente
     iniciar_conexiones(config);
     iniciar_hilo_escucha();
+    iniciar_bloqueos();
 
     // Parte servidor
 

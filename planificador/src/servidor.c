@@ -2,6 +2,7 @@
 #include "planificador.h"
 #include "util.h"
 #include "plani_largo_plazo.h"
+#include "bloqueos.h"
 
 #include <stdlib.h>
 #include <pthread.h>
@@ -142,6 +143,7 @@ void *atender_core(void *arg)
 
                 if (job_actual != NULL)
                 {
+                    deslockear_paginas_de_job(job_actual->jid);
                     pasar_a_ready(job_actual);
                 }
                 // No hago sem wait aca porque ya se hizo en el plani de corto plazo cuando se paso el job a exc
@@ -169,42 +171,50 @@ void *atender_core(void *arg)
             // enviar_mensaje("CONFIRMACION_RECIBIDA", socket_core);
             break;
         }
-        case DESALOJAR_JOB:
+
+                case DESALOJAR_JOB:
         {
-            u_int32_t jid;
+            // [jid][registros][motivo] + datos extra segun el motivo
+            t_list *valores = recibir_paquete(core->socket_dispatch);
+
+            u_int32_t jid = *(u_int32_t *)list_get(valores, 0);
             t_registros registros;
-            t_motivo_desalojo motivo;
-            recibir_desalojo(core->socket_dispatch, &jid, &registros, &motivo);
+            memcpy(&registros, list_get(valores, 1), sizeof(t_registros));
+            t_motivo_desalojo motivo = *(t_motivo_desalojo *)list_get(valores, 2);
 
             actualizar_contexto(jid, &registros);
 
             pthread_mutex_lock(&mutex_lista_jobs);
             t_job *job_encontrado = buscar_job_por_jid(lista_jobs, jid);
+            pthread_mutex_unlock(&mutex_lista_jobs);
+
             if (job_encontrado == NULL)
             {
                 log_error(logger, "Desalojo de un Job inexistente - JID: %u", jid);
-                pthread_mutex_unlock(&mutex_lista_jobs);
+                list_destroy_and_destroy_elements(valores, free);
                 break;
             }
-            pthread_mutex_unlock(&mutex_lista_jobs);
 
-            switch (motivo)
+            if (motivo == FIN_QUANTUM)
             {
-            case FIN_QUANTUM:
-            { // RR: se le acabo el turno pero no termino -> vuelve a READY
                 log_info(logger, "## (%u) - Desalojado por fin de quantum", jid);
                 pasar_a_ready(job_encontrado);
-                break;
             }
-            case SYSCALL_BLOQUEANTE:
-            { // termino su rafaga de CPU -> se recalcula la estimacion (HRRN)
+            else if (es_motivo_de_bloqueo(motivo))
+            {
+                // PAGE_FAULT, LOAD_BATCH, LABEL, REPORT -> BLOCK en la cola que corresponda
+                bloquear_job(job_encontrado, motivo, valores);
+            }
+            else if (motivo == SYSCALL_BLOQUEANTE)
+            {
                 actualizar_estimacion_prox_rafaga(job_encontrado);
-                break;
             }
-            default:
+            else
+            {
                 log_error(logger, "## (%u) - Motivo de desalojo desconocido: %d", jid, motivo);
-                break;
             }
+
+            list_destroy_and_destroy_elements(valores, free);
 
             // en cualquier caso el Core nos devolvio el Job, asi que queda libre
             pthread_mutex_lock(&mutex_lista_core);
@@ -214,6 +224,8 @@ void *atender_core(void *arg)
 
             break;
         }
+           
+
         case FINALIZAR_JOB:
         {
 

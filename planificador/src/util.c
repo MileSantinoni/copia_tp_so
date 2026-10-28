@@ -140,6 +140,12 @@ void pasar_a_ready(t_job *job)
     sem_post(&sem_cola_ready);
 }
 
+// EXEC -> BLOCK. El Job queda guardado en la cola de bloqueo que corresponda (ver bloqueos.c)
+void pasar_a_block(t_job *job)
+{
+    log_cambio_estado(job->jid, estado_a_string(job->estado), estado_a_string(BLOCK));
+    job->estado = BLOCK;
+}
 void pasar_a_exec(t_job *job)
 {
     char *estado_anterior = estado_a_string(job->estado);

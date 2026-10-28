@@ -176,7 +176,7 @@ void *escuchar_placa_storage(void *arg)
                  else if (strcmp(respuesta, "LIBERACION_DE_ESPACIO_ERROR") == 0)
                 {
                     solicitud->exito = true;
-                }v
+                }
                 else
                 {
                     log_error(logger,"Respuesta desconocida: %s - Solicitud: %u - Operacion: %d",respuesta,solicitud->id_solicitd,solicitud->operacion);

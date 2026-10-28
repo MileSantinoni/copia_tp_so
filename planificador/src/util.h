@@ -25,6 +25,7 @@ void liberar_job(t_job* job);
 void encolar_new(t_job *job);
 void pasar_a_ready(t_job *job);
 void pasar_a_exec(t_job *job);
+void pasar_a_block(t_job *job);
 void finalizar_job(t_job *job, char *motivo, u_int32_t id_core);
 
 // ACTTUALIZACION
