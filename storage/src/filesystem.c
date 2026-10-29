@@ -184,6 +184,42 @@ void escribir_bloque(uint32_t nro_bloque, void*buffer, char*checkpoint){
     log_info(logger, "## Acceso Bloque - Checkpoint: %s - Bloque: %u", checkpoint, nro_bloque);
 }
 
+// busquedas, devolveran posicion o en caso de no enconrar nada un -1
+//buscamos la entrada ocupada de ese directorio con ese nombre
+// si la encuentra, la copia en entrada y devolvera su indice
+static int buscar_entrada_por_nombre(char*nombre, t_entrada_directorio *entrada){
+  for(uint32_t i=0;i<geometria.entradas_directorio; i++ ){
+    leer_entrada_directorio(i, entrada);
+    if(entrada-> estado == 1 && strcmp(entrada-> nombre, nombre) == 0 )
+    return i;
+  }
+  return -1;
+}
+// devolvemos el indice de la 1er entrada
+static int buscar_entrada_libre(void){
+  t_entrada_directorio entrada;
+  for(uint32_t i=0; i<geometria.entradas_directorio; i++){
+  leer_entrada_directorio(i, &entrada);
+  if(entrada.estado==0)
+    return i;}
+  return -1; // indicamos directorio lleno
+}
+// Devuelve el primer bloque de datos libre fat==0
+// Arranca en el primer bloque de datos: los anteriores estan reservados
+static int buscar_bloque_libre(void){
+  for (uint32_t bloque =geometria.primer_bloque_datos ; bloque< geometria.cant_bloques; bloque++){
+    if(leer_entrada_fat(bloque)==FAT_LIBRE)
+    return bloque;
+  }
+  return -1; //no hay espacio
+}
+
+
+
+
+
+
+
 void iniciar_filesystem(void){ // se inicia el filesystem una vez al iniciar el storage
 // se decide si hay que abrir un volumen que ya existe o si hay que crear uno nuevo
  calcular_geometria(); // todo lo que viene usa la geometria, por lo que debemos hacer los calculos correspondientes primero
