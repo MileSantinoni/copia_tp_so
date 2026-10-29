@@ -151,7 +151,22 @@ void escribi_entrada_fat(uint32_t bloque, uint32_t valor){
   fflush(volumen);
    log_info(logger, "## Acceso FAT - Entrada: %u - Valor: 0x%08X", bloque, valor);
 }
-
+static long posicion_entrada_directorio(uint32_t indice){
+  long inicio_directorio = (long)geometria.primer_bloque_directorio * geometria.tam_bloque;
+  return inicio_directorio + indice *sizeof(t_entrada_directorio);
+}
+// leemos la entrada del indice de directorio
+void leer_entrada_directorio (uint32_t indice, t_entrada_directorio*entrada){
+  esperar_acceso_bloque();
+   fseek(volumen, posicion_entrada_directorio(indice), SEEK_SET);
+    fread(entrada, sizeof(t_entrada_directorio), 1, volumen);
+}
+void escribir_entrada_directorio(uint32_t indice, t_entrada_directorio * entrada){
+  esperar_acceso_bloque();
+  fseek(volumen, posicion_entrada_directorio(indice), SEEK_SET);
+  fwrite(entrada, sizeof(t_entrada_directorio), 1, volumen);
+  fflush(volumen);
+}
 
 
 void iniciar_filesystem(void){ // se inicia el filesystem una vez al iniciar el storage
@@ -174,7 +189,5 @@ void iniciar_filesystem(void){ // se inicia el filesystem una vez al iniciar el 
     crear_y_formatear_volumen(path);
    }
 free(path); // string_from_format reserva memoria nueva, por lo tanto la liberamos
-leer_entrada_fat(128);   // ultimo reservado
-    leer_entrada_fat(129); 
 
 }
