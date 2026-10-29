@@ -6,6 +6,7 @@
 #include <commons/string.h>   
 #include <string.h>
 
+
 t_geometria geometria;
 FILE *volumen = NULL;
 
@@ -119,6 +120,39 @@ static void abrir_volumen_existente(char *path){
      log_info(logger, "Volumen existente abierto: %s", path);
 }
 
+// Son las unicas funciones que leen o escriben el archivo durante la ejecucion.
+// Cada acceso espera RETARDO_ACCESO_BLOQUE, simulara la demora de un disco real
+
+static void esperar_acceso_bloque(void){
+   usleep(storage_config->RETARDO_ACCESO_BLOQUE * 1000); //la demora representada en micro segundos
+}
+// posicion en el archivo de la entrada de la fat que corresponde a bloque
+static long posicion_entrada_fat(uint32_t bloque){
+  long inicio_fat = (long)geometria.primer_bloque_fat *geometria.tam_bloque;
+  return inicio_fat + bloque * sizeof(uint32_t); 
+}
+//devuelve el valor de la fat para ese bloque: el siguiente de la cadena
+// fat_fin, fat_libre o fat reservado
+
+uint32_t leer_entrada_fat(uint32_t bloque){
+  uint32_t valor;
+  esperar_acceso_bloque();
+  fseek(volumen, posicion_entrada_fat(bloque), SEEK_SET);
+    fread(&valor, sizeof(uint32_t), 1, volumen);
+
+    log_info(logger, "## Acceso FAT - Entrada: %u - Valor: 0x%08X", bloque, valor);
+    return valor;
+}
+//escribimos en la fat el valor de ese bloque
+void escribi_entrada_fat(uint32_t bloque, uint32_t valor){
+  esperar_acceso_bloque();
+  fseek(volumen, posicion_entrada_fat(bloque), SEEK_SET);
+  fwrite(&valor, sizeof(uint32_t), 1, volumen);
+  fflush(volumen);
+   log_info(logger, "## Acceso FAT - Entrada: %u - Valor: 0x%08X", bloque, valor);
+}
+
+
 
 void iniciar_filesystem(void){ // se inicia el filesystem una vez al iniciar el storage
 // se decide si hay que abrir un volumen que ya existe o si hay que crear uno nuevo
@@ -140,5 +174,7 @@ void iniciar_filesystem(void){ // se inicia el filesystem una vez al iniciar el 
     crear_y_formatear_volumen(path);
    }
 free(path); // string_from_format reserva memoria nueva, por lo tanto la liberamos
+leer_entrada_fat(128);   // ultimo reservado
+    leer_entrada_fat(129); 
 
 }

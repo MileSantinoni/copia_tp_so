@@ -50,4 +50,6 @@ extern t_geometria geometria; // variable del tipo de struct definido anteriorme
 extern FILE *volumen;
 void calcular_geometria(void); // prototipo de una funcion, que sirve para el archivo que incluya el .h
 void iniciar_filesystem(void);
+uint32_t leer_entrada_fat(uint32_t bloque);
+void escribir_entrada_fat(uint32_t bloque, uint32_t valor);
 #endif
