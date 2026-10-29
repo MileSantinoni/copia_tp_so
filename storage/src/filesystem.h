@@ -54,4 +54,6 @@ uint32_t leer_entrada_fat(uint32_t bloque);
 void escribir_entrada_fat(uint32_t bloque, uint32_t valor);
 void leer_entrada_directorio(uint32_t indice, t_entrada_directorio *entrada);
 void escribir_entrada_directorio(uint32_t indice, t_entrada_directorio *entrada);
+void leer_bloque(uint32_t nro_bloque, void *buffer, char *checkpoint);
+void escribir_bloque(uint32_t nro_bloque, void *buffer, char *checkpoint);
 #endif

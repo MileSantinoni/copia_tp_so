@@ -167,7 +167,22 @@ void escribir_entrada_directorio(uint32_t indice, t_entrada_directorio * entrada
   fwrite(entrada, sizeof(t_entrada_directorio), 1, volumen);
   fflush(volumen);
 }
+// leemos el bloque de datos completo
 
+void leer_bloque(uint32_t nro_bloque, void * buffer,  char*checkpoint){
+  esperar_acceso_bloque();
+  fseek(volumen,(long)nro_bloque *geometria.tam_bloque, SEEK_SET);
+  fread(buffer, geometria.tam_bloque, 1, volumen);
+  log_info(logger, "## Acceso Bloque - Checkpoint: %s - Bloque: %u", checkpoint, nro_bloque);
+}
+//escribimos el buffer
+void escribir_bloque(uint32_t nro_bloque, void*buffer, char*checkpoint){
+   esperar_acceso_bloque();
+   fseek(volumen, (long)nro_bloque*geometria.tam_bloque, SEEK_SET);
+   fwrite(buffer, geometria.tam_bloque, 1, volumen);
+   fflush(volumen);
+    log_info(logger, "## Acceso Bloque - Checkpoint: %s - Bloque: %u", checkpoint, nro_bloque);
+}
 
 void iniciar_filesystem(void){ // se inicia el filesystem una vez al iniciar el storage
 // se decide si hay que abrir un volumen que ya existe o si hay que crear uno nuevo
@@ -189,5 +204,5 @@ void iniciar_filesystem(void){ // se inicia el filesystem una vez al iniciar el 
     crear_y_formatear_volumen(path);
    }
 free(path); // string_from_format reserva memoria nueva, por lo tanto la liberamos
-
+  
 }
