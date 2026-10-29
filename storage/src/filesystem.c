@@ -100,6 +100,25 @@ static void crear_y_formatear_volumen(char*path){
     log_info(logger, "Volumen creado y formateado: %s (%ld bytes)", path, tamanio_total);
 }
 
+// abrimos un volumen existente, sin borrar su contenido
+//verificamos que tenga el formato (fat32_train)
+static void abrir_volumen_existente(char *path){
+    volumen = fopen(path, "r+b"); // lo abro en lectura y escritura
+    if(volumen == NULL){
+        log_error(logger, "No se pudo abrir el volumen en %s", path);
+        exit(EXIT_FAILURE);
+    }
+    // leo los primero 11 bytes, que seran la firma
+    char firma[TAM_FIRMA];
+     fseek(volumen, 0, SEEK_SET);
+    fread(firma, TAM_FIRMA, 1, volumen);
+    if(memcmp(firma, FIRMA_FS, TAM_FIRMA)!=0){
+       log_error(logger, "El archivo %s no es un volumen FAT32_TRAIN valido", path);
+        exit(EXIT_FAILURE);
+    }
+     log_info(logger, "Volumen existente abierto: %s", path);
+}
+
 
 void iniciar_filesystem(void){ // se inicia el filesystem una vez al iniciar el storage
 // se decide si hay que abrir un volumen que ya existe o si hay que crear uno nuevo
@@ -115,7 +134,7 @@ void iniciar_filesystem(void){ // se inicia el filesystem una vez al iniciar el 
    // verifico si el archivo existia anteriormente
 
    if (access(path, F_OK)== 0){
-    log_info(logger, "El volumen existe: %s", path);
+     abrir_volumen_existente(path);
    }
    else{
     crear_y_formatear_volumen(path);
