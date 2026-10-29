@@ -65,6 +65,26 @@ static void escibir_superbloque(void){ // escribe el superbloque en el bloque 0,
 
   free(bloque);
 }
+// marcamos en la fat como reservados(0fffffe)los bloques Que NO son de datos
+// el superBloque, la fat misma y el directorio asi nunca se los asigna a un checkpoint
+static void marcar_bloques_reservados(void){
+
+  // en primer lugar guardamos la direccion del dato,en una variable
+  uint32_t reservado = FAT_RESERVADO;
+
+  // bloque en donde empieza el archivo de la fat, byte 64
+   long inicio_fat = (long)geometria.primer_bloque_fat * geometria.tam_bloque;
+
+   // bloques 0 a 128, anteriores al primero de datos
+   for(uint32_t bloque = 0; bloque < geometria.primer_bloque_datos; bloque++){
+    // nos paramos en la entrada de este bloque y escribimos sus 4 byte
+     fseek(volumen, inicio_fat + bloque * sizeof(uint32_t), SEEK_SET);
+        fwrite(&reservado, sizeof(uint32_t), 1, volumen);
+   }
+
+
+
+} 
 static void crear_y_formatear_volumen(char*path){
     volumen = fopen(path, "w+b");
     if(volumen == NULL){
@@ -75,6 +95,7 @@ static void crear_y_formatear_volumen(char*path){
     long tamanio_total = (long)geometria.cant_bloques * geometria.tam_bloque;
     ftruncate(fileno(volumen), tamanio_total); // truncara segun tamaño indicado por el usuario
     escibir_superbloque();
+    marcar_bloques_reservados();
     fflush(volumen); // fuerza que lo escrito llegue al archivo
     log_info(logger, "Volumen creado y formateado: %s (%ld bytes)", path, tamanio_total);
 }
