@@ -204,5 +204,5 @@ void iniciar_filesystem(void){ // se inicia el filesystem una vez al iniciar el 
     crear_y_formatear_volumen(path);
    }
 free(path); // string_from_format reserva memoria nueva, por lo tanto la liberamos
-  
+
 }
