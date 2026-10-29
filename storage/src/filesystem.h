@@ -56,4 +56,5 @@ void leer_entrada_directorio(uint32_t indice, t_entrada_directorio *entrada);
 void escribir_entrada_directorio(uint32_t indice, t_entrada_directorio *entrada);
 void leer_bloque(uint32_t nro_bloque, void *buffer, char *checkpoint);
 void escribir_bloque(uint32_t nro_bloque, void *buffer, char *checkpoint);
+bool guardar_checkpoint(char *nombre, void *contenido, uint32_t tamanio);
 #endif
