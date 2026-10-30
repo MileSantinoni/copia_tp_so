@@ -261,6 +261,12 @@ bool guardar_checkpoint(char*nombre,void*contenido, uint32_t tamanio){
             return false;
     }
   }
+
+
+
+
+
+
   //paso 2, los bloques que ya tenia (en caso que existian) y cuantos necesita ahora
   uint32_t cant_viejos=0;
   uint32_t *viejos = ya_existia ?  obtener_cadena(&entrada, &cant_viejos) : NULL;
@@ -331,10 +337,37 @@ for (uint32_t i = cant_reusados; i < cant_nuevos; i++)
     free(nuevos);
     pthread_mutex_unlock(&mutex_filesystem);
     return true;
-
-  
-
 }
+ //lee el checkpoint nombre completo
+  // devolvemos buffer con su contenido y dejar en *tamanio
+  // cuantos bytes son datos, si el checkpoint no existe devolvemos NULL
+
+  void * leer_checkpoint(char*nombre, uint32_t *tamanio){
+    pthread_mutex_lock(&mutex_filesystem);
+    // buscamos la entrada
+    t_entrada_directorio entrada;
+    if(buscar_entrada_por_nombre(nombre, &entrada) == -1){
+      log_warning(logger, "El checkpoint %s no existe", nombre);
+      pthread_mutex_unlock(&mutex_filesystem);
+      return NULL;
+    }
+    // paso 2 sus bloques en orden
+    uint32_t cant_bloques;
+    uint32_t * bloques = obtener_cadena(&entrada, &cant_bloques);
+    // leo cada bloque uno detras del otro
+    void *contenido = malloc(cant_bloques * geometria.tam_bloque);
+    for(uint32_t i = 0; i<cant_bloques; i++)
+    leer_bloque(bloques[i], contenido+i*geometria.tam_bloque, nombre);
+
+    // cuantos de esos bytes son datos de verdad
+    *tamanio = entrada.tamanio;
+      log_info(logger, "## Carga Checkpoint: %s - Tamaño: %u completada", nombre, entrada.tamanio);
+
+    free(bloques);
+    pthread_mutex_unlock(&mutex_filesystem);
+    return contenido;
+  }
+
 
 
 
@@ -362,5 +395,16 @@ void iniciar_filesystem(void){ // se inicia el filesystem una vez al iniciar el 
     crear_y_formatear_volumen(path);
    }
 free(path); // string_from_format reserva memoria nueva, por lo tanto la liberamos
+    // PRUEBA TEMPORAL: borrar despues
+    uint32_t tam;
+    char *leido = leer_checkpoint("modelo", &tam);
+    if (leido != NULL)
+    {
+        log_info(logger, "PRUEBA leer modelo: tamanio=%u contenido=%.*s", tam, tam, leido);
+        free(leido);
+    }
+
+    char *nada = leer_checkpoint("nada", &tam);
+    log_info(logger, "PRUEBA leer nada: %s", nada == NULL ? "NULL (no existe)" : "encontrado");
 
 }
