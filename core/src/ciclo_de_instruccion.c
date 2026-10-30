@@ -14,11 +14,6 @@
 #include <utils/comunicacion.h>
 #include <utils/protocolo.h>
 
-//TODO revisar si es necesario 
-extern uint32_t pagina_page_fault;
-
-
-
 void ciclo_de_instruccion(int socket_dispatch, int socket_placa, uint32_t jid)
 {                       // denominado fetch, se encarga de captar la proxima instruccion
     int ejecutando = 1; // seteamos en true
@@ -77,25 +72,19 @@ void ciclo_de_instruccion(int socket_dispatch, int socket_placa, uint32_t jid)
 
         if (resultado == EJECUCION_PAGE_FAULT)
         {
-
             log_info(
                 logger,
                 "## JID: %u - Devolviendo contexto por Page Fault en PC: %u",
                 jid,
                 registros_cpu.PC);
 
-            t_paquete *paquete = crear_paquete(DESALOJAR_JOB);
-            t_motivo_desalojo motivo = PAGE_FAULT;
+            mmu_deslockear_paginas(socket_placa, jid);
 
-            // aca se arma el paquete para poder enviar el numero de página y no solo el desalojo
-
-            agregar_a_paquete(paquete, &jid, sizeof(uint32_t));
-            agregar_a_paquete(paquete, &motivo, sizeof(t_motivo_desalojo));
-            agregar_a_paquete(paquete, &registros_cpu, sizeof(t_registros));
-            agregar_a_paquete(paquete, &pagina_page_fault, sizeof(uint32_t));
-
-            enviar_paquete(paquete, socket_dispatch);
-            eliminar_paquete(paquete);
+            enviar_desalojo_page_fault(
+                socket_dispatch,
+                jid,
+                &registros_cpu,
+                mmu_get_pagina_page_fault());
 
             ejecutando = 0;
             continue;
@@ -112,6 +101,14 @@ void ciclo_de_instruccion(int socket_dispatch, int socket_placa, uint32_t jid)
                 socket_placa,
                 jid);
 
+            ejecutando = 0;
+            continue;
+        }
+
+        if (resultado == EJECUCION_BLOQUEADA)
+        {
+            if (registros_cpu.PC == pc_anterior)
+                registros_cpu.PC++;
             ejecutando = 0;
             continue;
         }
@@ -246,6 +243,97 @@ uint32_t obtener_valor_operando(char *operando)
 
     return (uint32_t)strtoul(operando, NULL, 10);
 }
+static t_resultado_ejecucion preparar_accesos(
+    int socket_placa,
+    uint32_t jid,
+    const uint32_t *direcciones,
+    size_t cantidad)
+{
+    for (size_t i = 0; i < cantidad; i++)
+    {
+        t_list *segmentos = NULL;
+        t_resultado_mmu resultado = mmu_traducir_rango(
+            socket_placa,
+            jid,
+            direcciones[i],
+            sizeof(uint32_t),
+            &segmentos);
+        mmu_destruir_segmentos(segmentos);
+        if (resultado != MMU_OK)
+        {
+            return resultado == MMU_PAGE_FAULT
+                       ? EJECUCION_PAGE_FAULT
+                       : EJECUCION_ERROR;
+        }
+    }
+    return EJECUCION_CONTINUA;
+}
+
+static t_resultado_ejecucion ejecutar_syscall_memoria(
+    t_instruccion *instruccion,
+    uint32_t jid,
+    int socket_placa,
+    int socket_dispatch,
+    t_motivo_desalojo motivo)
+{
+    uint32_t direccion;
+    uint32_t tamanio;
+    char *nombre = NULL;
+    if (motivo == SYSCALL_LOAD_BATCH)
+    {
+        if (instruccion->cantidad_parametros != 3)
+        {
+            log_error(logger, "LOAD_BATCH requiere archivo, dirección y tamaño");
+            return EJECUCION_ERROR;
+        }
+        nombre = instruccion->parametros[0];
+        direccion = obtener_valor_operando(instruccion->parametros[1]);
+        tamanio = obtener_valor_operando(instruccion->parametros[2]);
+    }
+    else
+    {
+        if (instruccion->cantidad_parametros != 2)
+        {
+            log_error(
+                logger,
+                "%s requiere dirección y tamaño",
+                motivo == SYSCALL_LABEL ? "LABEL" : "REPORT");
+            return EJECUCION_ERROR;
+        }
+        direccion = obtener_valor_operando(instruccion->parametros[0]);
+        tamanio = obtener_valor_operando(instruccion->parametros[1]);
+    }
+    if (tamanio == 0)
+    {
+        log_error(logger, "## JID: %u - Tamaño de syscall inválido", jid);
+        return EJECUCION_ERROR;
+    }
+    t_list *segmentos = NULL;
+    t_resultado_mmu resultado = mmu_traducir_rango(
+        socket_placa,
+        jid,
+        direccion,
+        tamanio,
+        &segmentos);
+    if (resultado != MMU_OK)
+    {
+        mmu_destruir_segmentos(segmentos);
+        return resultado == MMU_PAGE_FAULT
+                   ? EJECUCION_PAGE_FAULT
+                   : EJECUCION_ERROR;
+    }
+    enviar_desalojo_syscall_memoria(
+        socket_dispatch,
+        jid,
+        &registros_cpu,
+        motivo,
+        nombre,
+        tamanio,
+        segmentos);
+    mmu_destruir_segmentos(segmentos);
+    return EJECUCION_BLOQUEADA;
+}
+
 // INIT_JOB es una syscall no bloqueante: el Core se la pide al Planificador,
 // espera la respuesta y sigue ejecutando el mismo Job (no devuelve el contexto).
 static void syscall_init_job(uint32_t jid, char *archivo)
@@ -446,6 +534,22 @@ t_resultado_ejecucion ejecutar_instruccion(
         uint32_t direccion_acumulador =
             obtener_valor_operando(instruccion->parametros[3]);
 
+        const uint32_t direcciones[] = {
+            direccion_pesos,
+            direccion_entrada,
+            direccion_acumulador,
+            direccion_salida};
+        t_resultado_ejecucion preparacion = preparar_accesos(
+            socket_placa,
+            jid,
+            direcciones,
+            sizeof(direcciones) / sizeof(direcciones[0]));
+        if (preparacion != EJECUCION_CONTINUA)
+        {
+            mmu_deslockear_paginas(socket_placa, jid);
+            return preparacion;
+        }
+
         uint32_t pesos;
         uint32_t entrada;
         uint32_t acumulador;
@@ -476,11 +580,11 @@ t_resultado_ejecucion ejecutar_instruccion(
                 direccion_entrada,
                 &entrada);
 
-        if (resultado == MMU_PAGE_FAULT)
-        {
-            mmu_deslockear_paginas(socket_placa, jid);
-            return EJECUCION_PAGE_FAULT;
-        }
+        // if (resultado == MMU_PAGE_FAULT)
+        // {
+        //     mmu_deslockear_paginas(socket_placa, jid);
+        //     return EJECUCION_PAGE_FAULT;
+        // }
 
         if (resultado != MMU_OK)
         {
@@ -495,11 +599,11 @@ t_resultado_ejecucion ejecutar_instruccion(
                 direccion_acumulador,
                 &acumulador);
 
-        if (resultado == MMU_PAGE_FAULT)
-        {
-            mmu_deslockear_paginas(socket_placa, jid);
-            return EJECUCION_PAGE_FAULT;
-        }
+        //  if (resultado == MMU_PAGE_FAULT)
+        // {
+        //     mmu_deslockear_paginas(socket_placa, jid);
+        //     return EJECUCION_PAGE_FAULT;
+        // }
 
         if (resultado != MMU_OK)
         {
@@ -517,11 +621,11 @@ t_resultado_ejecucion ejecutar_instruccion(
                 direccion_salida,
                 nuevo_acumulador);
 
-        if (resultado == MMU_PAGE_FAULT)
-        {
-            mmu_deslockear_paginas(socket_placa, jid);
-            return EJECUCION_PAGE_FAULT;
-        }
+        // // if (resultado == MMU_PAGE_FAULT)
+        // {
+        //     mmu_deslockear_paginas(socket_placa, jid);
+        //     return EJECUCION_PAGE_FAULT;
+        // }
 
         if (resultado != MMU_OK)
         {
@@ -557,6 +661,22 @@ t_resultado_ejecucion ejecutar_instruccion(
 
         uint32_t direccion_acumulador =
             obtener_valor_operando(instruccion->parametros[3]);
+
+        const uint32_t direcciones[] = {
+            direccion_pesos,
+            direccion_activaciones,
+            direccion_acumulador,
+            direccion_gradientes};
+        t_resultado_ejecucion preparacion = preparar_accesos(
+            socket_placa,
+            jid,
+            direcciones,
+            sizeof(direcciones) / sizeof(direcciones[0]));
+        if (preparacion != EJECUCION_CONTINUA)
+        {
+            mmu_deslockear_paginas(socket_placa, jid);
+            return preparacion;
+        }
 
         uint32_t pesos;
         uint32_t activaciones;
@@ -636,31 +756,155 @@ t_resultado_ejecucion ejecutar_instruccion(
 
     if (strcmp(instruccion->nombre, "UPDATE") == 0)
     {
+        if (instruccion->cantidad_parametros != 3)
+        {
+            log_error(logger, "UPDATE requiere 3 parámetros");
+            return EJECUCION_ERROR;
+        }
+
         uint32_t dir_gradientes = obtener_valor_registro(instruccion->parametros[0]);
         uint32_t dir_estado = obtener_valor_registro(instruccion->parametros[1]);
         uint32_t dir_pesos = obtener_valor_registro(instruccion->parametros[2]);
 
-        if (mmu_leer_uint32(socket_placa, jid, dir_gradientes, &registros_cpu.E1) == MMU_PAGE_FAULT)
-            return EJECUCION_PAGE_FAULT;
-        if (mmu_leer_uint32(socket_placa, jid, dir_estado, &registros_cpu.E2) == MMU_PAGE_FAULT)
-            return EJECUCION_PAGE_FAULT;
-        if (mmu_leer_uint32(socket_placa, jid, dir_pesos, &registros_cpu.E3) == MMU_PAGE_FAULT)
-            return EJECUCION_PAGE_FAULT;
+        // if (mmu_leer_uint32(socket_placa, jid, dir_gradientes, &registros_cpu.E1) == MMU_PAGE_FAULT)
+        // {
+        //     return EJECUCION_PAGE_FAULT;
+        // }
+        // if (mmu_leer_uint32(socket_placa, jid, dir_estado, &registros_cpu.E2) == MMU_PAGE_FAULT)
+        // {
+        //     return EJECUCION_PAGE_FAULT;
+        // }
+        // if (mmu_leer_uint32(socket_placa, jid, dir_pesos, &registros_cpu.E3) == MMU_PAGE_FAULT)
+        // {
+        //     return EJECUCION_PAGE_FAULT;
+        // }
+
+        const uint32_t direcciones[] = {
+            dir_gradientes,
+            dir_estado,
+            dir_pesos};
+        t_resultado_ejecucion preparacion = preparar_accesos(
+            socket_placa,
+            jid,
+            direcciones,
+            sizeof(direcciones) / sizeof(direcciones[0]));
+        if (preparacion != EJECUCION_CONTINUA)
+        {
+            mmu_deslockear_paginas(socket_placa, jid);
+            return preparacion;
+        }
+        t_resultado_mmu resultado = mmu_leer_uint32(
+            socket_placa,
+            jid,
+            dir_gradientes,
+            &registros_cpu.E1);
+        if (resultado != MMU_OK)
+        {
+            mmu_deslockear_paginas(socket_placa, jid);
+            return resultado == MMU_PAGE_FAULT
+                       ? EJECUCION_PAGE_FAULT
+                       : EJECUCION_ERROR;
+        }
+        resultado = mmu_leer_uint32(
+            socket_placa,
+            jid,
+            dir_estado,
+            &registros_cpu.E2);
+        if (resultado != MMU_OK)
+        {
+            mmu_deslockear_paginas(socket_placa, jid);
+            return resultado == MMU_PAGE_FAULT
+                       ? EJECUCION_PAGE_FAULT
+                       : EJECUCION_ERROR;
+        }
+        resultado = mmu_leer_uint32(
+            socket_placa,
+            jid,
+            dir_pesos,
+            &registros_cpu.E3);
+        if (resultado != MMU_OK)
+        {
+            mmu_deslockear_paginas(socket_placa, jid);
+            return resultado == MMU_PAGE_FAULT
+                       ? EJECUCION_PAGE_FAULT
+                       : EJECUCION_ERROR;
+        }
 
         registros_cpu.E2 = (registros_cpu.E2 + registros_cpu.E1) / 2;
         registros_cpu.E3 = registros_cpu.E3 - registros_cpu.E2;
 
-        if (mmu_escribir_uint32(socket_placa, jid, dir_estado, registros_cpu.E2) == MMU_PAGE_FAULT)
-            return EJECUCION_PAGE_FAULT;
-        if (mmu_escribir_uint32(socket_placa, jid, dir_pesos, registros_cpu.E3) == MMU_PAGE_FAULT)
-            return EJECUCION_PAGE_FAULT;
+        // if (mmu_escribir_uint32(socket_placa, jid, dir_estado, registros_cpu.E2) == MMU_PAGE_FAULT)
+        // {
+        //     mmu_deslockear_paginas(socket_placa, jid);
+        //     return EJECUCION_PAGE_FAULT;
+        // }
+        // if (mmu_escribir_uint32(socket_placa, jid, dir_pesos, registros_cpu.E3) == MMU_PAGE_FAULT)
+        // {
+        //     mmu_deslockear_paginas(socket_placa, jid);
+        //     return EJECUCION_PAGE_FAULT;
+        // }
+
+        resultado = mmu_escribir_uint32(
+            socket_placa,
+            jid,
+            dir_estado,
+            registros_cpu.E2);
+        if (resultado != MMU_OK)
+        {
+            mmu_deslockear_paginas(socket_placa, jid);
+            return resultado == MMU_PAGE_FAULT
+                       ? EJECUCION_PAGE_FAULT
+                       : EJECUCION_ERROR;
+        }
+        resultado = mmu_escribir_uint32(
+            socket_placa,
+            jid,
+            dir_pesos,
+            registros_cpu.E3);
+        if (resultado != MMU_OK)
+        {
+            mmu_deslockear_paginas(socket_placa, jid);
+            return resultado == MMU_PAGE_FAULT
+                       ? EJECUCION_PAGE_FAULT
+                       : EJECUCION_ERROR;
+        }
+        mmu_deslockear_paginas(socket_placa, jid);
 
         return EJECUCION_CONTINUA;
     }
 
-    log_error(logger, "Instruccion desconocida o no implementada");
-    return EJECUCION_CONTINUA;
+    if (strcmp(instruccion->nombre, "LOAD_BATCH") == 0)
+    {
+        return ejecutar_syscall_memoria(
+            instruccion,
+            jid,
+            socket_placa,
+            socket_dispatch,
+            SYSCALL_LOAD_BATCH);
+        if (strcmp(instruccion->nombre, "LABEL") == 0)
+        {
+            return ejecutar_syscall_memoria(
+                instruccion,
+                jid,
+                socket_placa,
+                socket_dispatch,
+                SYSCALL_LABEL);
+        }
+        if (strcmp(instruccion->nombre, "REPORT") == 0)
+        {
+            return ejecutar_syscall_memoria(
+                instruccion,
+                jid,
+                socket_placa,
+                socket_dispatch,
+                SYSCALL_REPORT);
+        }
+    }
 
+    log_error(logger, "Instruccion desconocida o no implementada");
+
+    mmu_deslockear_paginas(socket_placa, jid);
+    return EJECUCION_CONTINUA;
 }
 
 //  // FORWARD

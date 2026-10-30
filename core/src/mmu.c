@@ -12,7 +12,7 @@
 
 extern t_log *logger;
 static uint32_t tamanio_pagina = 0;
-uint32_t pagina_page_fault = 0;
+static uint32_t pagina_page_fault = 0;
 
 // esta funcion quizá podria ser reemplazada por eliminar_paquete
 // TODO revisar
@@ -32,6 +32,11 @@ static bool lista_tiene_elementos(t_list *valores, int cantidad_minima)
 uint32_t mmu_get_tamanio_pagina(void)
 {
     return tamanio_pagina;
+}
+
+uint32_t mmu_get_pagina_page_fault(void)
+{
+    return pagina_page_fault;
 }
 
 bool mmu_inicializar(int socket_placa)
@@ -283,9 +288,15 @@ t_resultado_mmu mmu_traducir_direccion(
             return MMU_ERROR;
         }
 
-        uint32_t *pagina_page_fault = list_get(valores, 0);
+        // uint32_t *pagina_page_fault = list_get(valores, 0);
 
-        if (pagina_page_fault == NULL)
+        uint32_t *pag_recibida = list_get(valores, 0);
+        if (pag_recibida != NULL)
+        {
+            pagina_page_fault = *pag_recibida;
+        }
+
+        if (pag_recibida == NULL)
         {
             destruir_lista_paquete(valores);
             return MMU_ERROR;
@@ -297,7 +308,7 @@ t_resultado_mmu mmu_traducir_direccion(
                 logger,
                 "## JID: %u - Page Fault - Página: %u",
                 jid,
-                *pagina_page_fault);
+                pagina_page_fault);
         }
 
         destruir_lista_paquete(valores);
@@ -526,6 +537,20 @@ t_resultado_mmu mmu_traducir_rango(
         tamanio == 0 ||
         mmu_get_tamanio_pagina() == 0)
     {
+        return MMU_ERROR;
+    }
+
+    if (direccion_logica > UINT32_MAX - (tamanio - 1))
+    {
+        if (logger != NULL)
+        {
+            log_error(
+                logger,
+                "## JID: %u - MMU - Rango lógico fuera de uint32: inicio=%u tamaño=%u",
+                jid,
+                direccion_logica,
+                tamanio);
+        }
         return MMU_ERROR;
     }
 

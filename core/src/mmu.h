@@ -38,6 +38,7 @@ bool mmu_inicializar(int socket_placa);
 bool mmu_set_tamanio_pagina(uint32_t tamanio_pagina);
 
 uint32_t mmu_get_tamanio_pagina(void);
+uint32_t mmu_get_pagina_page_fault(void);
 
 bool mmu_separar_direccion(
     uint32_t direccion_logica,
