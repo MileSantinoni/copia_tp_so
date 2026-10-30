@@ -384,8 +384,8 @@ for (uint32_t i = cant_reusados; i < cant_nuevos; i++)
     // liberamos todos los bloques de su cadena
     uint32_t cant_bloques;
     uint32_t *bloques =obtener_cadena(&entrada, &cant_bloques);
-    for(uint32_t i = 0; i<cant_bloques; i++)
-      escribir_entrada_fat(bloques[i],FAT_LIBRE);
+    for(uint32_t i = 0; i<cant_bloques; i++){
+      escribir_entrada_fat(bloques[i],FAT_LIBRE);}
 
       //marcamos la entrada del directorio como libre
       entrada.estado = 0;
