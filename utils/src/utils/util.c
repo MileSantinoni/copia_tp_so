@@ -117,8 +117,8 @@ char *motivo_de_desalojo_a_string(t_motivo_desalojo motivo)
         case SYSCALL_BLOQUEANTE: return "SYSCALL_BLOQUEANTE";
         case PAGE_FAULT : return "PAGE_FAULT";
         case SYSCALL_LOAD_BATCH: return "LOAD_BATCH";
-        case SYSCALL_LABEL: return " LABEL";
-        case SYSCALL_REPORT: return " REPORT";
+        case SYSCALL_LABEL: return "LABEL";
+        case SYSCALL_REPORT: return "REPORT";
         default :   return "DESCONOCIDO";
     }
 }

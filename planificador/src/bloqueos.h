@@ -24,7 +24,7 @@ typedef bool (*t_atencion)(int socket_placa, t_peticion_bloqueo *peticion);
 typedef struct
 {
     char *nombre;
-    bool es_servicio;    // los servicios loguean inicio/fin y desbloquean al terminar (page fault no)
+    bool es_servicio;    // los servicios loguean inicio/fin y deslockean al terminar (page fault no)
     t_list *cola;
     pthread_mutex_t mutex;
     sem_t sem_pendientes;
@@ -35,6 +35,6 @@ typedef struct
 void iniciar_bloqueos(void);
 bool es_motivo_de_bloqueo(t_motivo_desalojo motivo);
 void bloquear_job(t_job *job, t_motivo_desalojo motivo, t_list *valores);
-void desbloquear_paginas_de_job(uint32_t jid);
+void deslockear_paginas_de_job(uint32_t jid);
 
 #endif

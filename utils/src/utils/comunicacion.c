@@ -230,6 +230,45 @@ void recibir_desalojo(int socket_origen, uint32_t *jid, t_registros *registros, 
 	list_destroy_and_destroy_elements(valores, free);
 }
 
+// El Core devuelve el Job por Page Fault, indicando que pagina falta.
+// Paquete: [jid][registros][PAGE_FAULT][nro_pagina]
+void enviar_desalojo_page_fault(int socket_destino, uint32_t jid, t_registros *registros, uint32_t nro_pagina)
+{
+	t_motivo_desalojo motivo = PAGE_FAULT;
+	t_paquete *paquete = crear_paquete(DESALOJAR_JOB);
+
+	agregar_a_paquete(paquete, &jid, sizeof(uint32_t));
+	agregar_a_paquete(paquete, registros, sizeof(t_registros));
+	agregar_a_paquete(paquete, &motivo, sizeof(t_motivo_desalojo));
+	agregar_a_paquete(paquete, &nro_pagina, sizeof(uint32_t));
+
+	enviar_paquete(paquete, socket_destino);
+	eliminar_paquete(paquete);
+}
+
+// El Core devuelve el Job por una syscall que opera sobre su memoria (LOAD_BATCH, LABEL, REPORT).
+// Paquete: [jid][registros][motivo][nombre ("" si no aplica)][tamanio][df_1]...[df_n]
+// direcciones_fisicas: lista de t_direccion_fisica*, una por pagina involucrada
+void enviar_desalojo_syscall_memoria(int socket_destino, uint32_t jid, t_registros *registros, t_motivo_desalojo motivo,
+									 char *nombre, uint32_t tamanio, t_list *direcciones_fisicas)
+{
+	char *nombre_a_enviar = nombre != NULL ? nombre : "";
+	t_paquete *paquete = crear_paquete(DESALOJAR_JOB);
+
+	agregar_a_paquete(paquete, &jid, sizeof(uint32_t));
+	agregar_a_paquete(paquete, registros, sizeof(t_registros));
+	agregar_a_paquete(paquete, &motivo, sizeof(t_motivo_desalojo));
+	agregar_a_paquete(paquete, nombre_a_enviar, strlen(nombre_a_enviar) + 1);
+	agregar_a_paquete(paquete, &tamanio, sizeof(uint32_t));
+
+	for (int i = 0; i < list_size(direcciones_fisicas); i++)
+	{
+		agregar_a_paquete(paquete, list_get(direcciones_fisicas, i), sizeof(t_direccion_fisica));
+	}
+
+	enviar_paquete(paquete, socket_destino);
+	eliminar_paquete(paquete);
+}
 // PETICIONES
 
 u_int32_t id_peticion = 0; // variable de id_peticion global para llevar el conteo y que no se repita
