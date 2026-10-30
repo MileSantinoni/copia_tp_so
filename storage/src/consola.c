@@ -76,10 +76,24 @@ static void comando_cat(char**partes){
     free(contenido);
 }
 
+// RM <nombre>
+static void comando_rm(char ** partes){
+    if(partes[1]==NULL){
+         printf("Uso: RM <nombre>\n");
+        return;
+    }
+      if (eliminar_checkpoint(partes[1]))
+        printf("Checkpoint %s eliminado\n", partes[1]);
+    else
+        printf("El checkpoint %s no existe\n", partes[1]);
+}
+
 
 //recibe una linea ya escrita por el usuario y ejecuta comando que segun corresponda
 
 static void procesar_comando(char*linea){
+    while(*linea == ' ')
+    linea++;
     // "CAT modelo 10" -> ["CAT", "modelo", "10", NULL]
     char **partes = string_split(linea, " ");
     char *comando = partes[0];
@@ -103,6 +117,10 @@ static void procesar_comando(char*linea){
     else if (strcmp(comando, "CAT") == 0)     
     {
         comando_cat(partes);
+    }
+        else if (strcmp(comando, "RM") == 0)
+    {
+        comando_rm(partes);
     }
     else
     {
