@@ -64,5 +64,7 @@ void enviar_contexto(int socket_destino, op_code codigo, uint32_t jid, t_registr
 void recibir_contexto(int socket_origen, uint32_t* jid, t_registros* registros);
 void enviar_desalojo(int socket_destino, uint32_t jid, t_registros* registros, t_motivo_desalojo motivo);
 void recibir_desalojo(int socket_origen, uint32_t* jid, t_registros* registros, t_motivo_desalojo* motivo);
-
+void enviar_desalojo_page_fault(int socket_destino, uint32_t jid, t_registros* registros, uint32_t nro_pagina);
+void enviar_desalojo_syscall_memoria(int socket_destino, uint32_t jid, t_registros* registros, t_motivo_desalojo motivo,
+                                     char* nombre, uint32_t tamanio, t_list* direcciones_fisicas);
 #endif
