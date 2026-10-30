@@ -395,16 +395,6 @@ void iniciar_filesystem(void){ // se inicia el filesystem una vez al iniciar el 
     crear_y_formatear_volumen(path);
    }
 free(path); // string_from_format reserva memoria nueva, por lo tanto la liberamos
-    // PRUEBA TEMPORAL: borrar despues
-    uint32_t tam;
-    char *leido = leer_checkpoint("modelo", &tam);
-    if (leido != NULL)
-    {
-        log_info(logger, "PRUEBA leer modelo: tamanio=%u contenido=%.*s", tam, tam, leido);
-        free(leido);
-    }
-
-    char *nada = leer_checkpoint("nada", &tam);
-    log_info(logger, "PRUEBA leer nada: %s", nada == NULL ? "NULL (no existe)" : "encontrado");
+ 
 
 }
