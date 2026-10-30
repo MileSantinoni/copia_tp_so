@@ -367,6 +367,36 @@ for (uint32_t i = cant_reusados; i < cant_nuevos; i++)
     pthread_mutex_unlock(&mutex_filesystem);
     return contenido;
   }
+  // eliminamos el checkpoint nombre: libera todos sus bloques en la FAT
+  // y marca su entrada de directorio como libre
+  // devuelve false si el checkpoint no existe
+  bool eliminar_checkpoint(char*nombre){
+    pthread_mutex_lock (&mutex_filesystem);
+
+    // buscamos la entrada
+    t_entrada_directorio entrada;
+    int indice = buscar_entrada_por_nombre(nombre, &entrada);
+    if (indice == -1){
+      log_warning(logger, "El checkpoint %s no existe", nombre);
+      pthread_mutex_unlock(&mutex_filesystem);
+      return false;
+    }
+    // liberamos todos los bloques de su cadena
+    uint32_t cant_bloques;
+    uint32_t *bloques =obtener_cadena(&entrada, &cant_bloques);
+    for(uint32_t i = 0; i<cant_bloques; i++)
+      escribir_entrada_fat(bloques[i],FAT_LIBRE);
+
+      //marcamos la entrada del directorio como libre
+      entrada.estado = 0;
+      escribir_entrada_directorio (indice, &entrada);
+       log_info(logger, "## Eliminacion Checkpoint: %s - Tamaño: %u completada", nombre, entrada.tamanio);
+
+       free(bloques);
+       pthread_mutex_unlock(&mutex_filesystem);
+      return true;
+    
+  }
 
 
 
@@ -395,6 +425,4 @@ void iniciar_filesystem(void){ // se inicia el filesystem una vez al iniciar el 
     crear_y_formatear_volumen(path);
    }
 free(path); // string_from_format reserva memoria nueva, por lo tanto la liberamos
- 
-
 }
