@@ -12,6 +12,7 @@
 
 extern t_log *logger;
 static uint32_t tamanio_pagina = 0;
+uint32_t pagina_page_fault = 0;
 
 // esta funcion quizá podria ser reemplazada por eliminar_paquete
 // TODO revisar
@@ -23,12 +24,10 @@ static void destruir_lista_paquete(t_list *valores)
     }
 }
 
-
 static bool lista_tiene_elementos(t_list *valores, int cantidad_minima)
 {
     return valores != NULL && list_size(valores) >= cantidad_minima;
 }
-
 
 uint32_t mmu_get_tamanio_pagina(void)
 {
@@ -43,8 +42,7 @@ bool mmu_inicializar(int socket_placa)
         {
             log_error(
                 logger,
-                "MMU: Socket de Placa inválido"
-            );
+                "MMU: Socket de Placa inválido");
         }
 
         return false;
@@ -58,8 +56,7 @@ bool mmu_inicializar(int socket_placa)
         {
             log_error(
                 logger,
-                "MMU: No se pudo crear el paquete para solicitar el tamaño de página"
-            );
+                "MMU: No se pudo crear el paquete para solicitar el tamaño de página");
         }
 
         return false;
@@ -76,8 +73,7 @@ bool mmu_inicializar(int socket_placa)
         {
             log_error(
                 logger,
-                "MMU: Placa se desconectó al solicitar el tamaño de página"
-            );
+                "MMU: Placa se desconectó al solicitar el tamaño de página");
         }
 
         return false;
@@ -90,8 +86,7 @@ bool mmu_inicializar(int socket_placa)
             log_error(
                 logger,
                 "MMU: Se esperaba RESPUESTA_TAM_PAGINA y se recibió op_code %d",
-                codigo_operacion
-            );
+                codigo_operacion);
         }
 
         return false;
@@ -105,8 +100,7 @@ bool mmu_inicializar(int socket_placa)
         {
             log_error(
                 logger,
-                "MMU: Respuesta inválida para el tamaño de página"
-            );
+                "MMU: Respuesta inválida para el tamaño de página");
         }
 
         destruir_lista_paquete(valores);
@@ -129,8 +123,7 @@ bool mmu_inicializar(int socket_placa)
         log_info(
             logger,
             "MMU: Tamaño de página recibido de Placa: %u",
-            tamanio_pagina
-        );
+            tamanio_pagina);
     }
 
     return true;
@@ -139,8 +132,7 @@ bool mmu_inicializar(int socket_placa)
 bool mmu_separar_direccion(
     uint32_t direccion_logica,
     uint32_t *nro_pagina,
-    uint32_t *desplazamiento
-)
+    uint32_t *desplazamiento)
 {
     if (tamanio_pagina == 0)
     {
@@ -148,8 +140,7 @@ bool mmu_separar_direccion(
         {
             log_error(
                 logger,
-                "MMU: No se puede traducir porque el tamaño de página no fue inicializado"
-            );
+                "MMU: No se puede traducir porque el tamaño de página no fue inicializado");
         }
 
         return false;
@@ -161,8 +152,7 @@ bool mmu_separar_direccion(
         {
             log_error(
                 logger,
-                "MMU: Parámetros nulos al separar dirección lógica"
-            );
+                "MMU: Parámetros nulos al separar dirección lógica");
         }
 
         return false;
@@ -178,8 +168,7 @@ t_resultado_mmu mmu_traducir_direccion(
     int socket_placa,
     uint32_t jid,
     uint32_t direccion_logica,
-    t_traduccion_mmu *traduccion
-)
+    t_traduccion_mmu *traduccion)
 {
     if (socket_placa < 0)
     {
@@ -188,8 +177,7 @@ t_resultado_mmu mmu_traducir_direccion(
             log_error(
                 logger,
                 "## JID: %u - MMU - Socket de Placa inválido",
-                jid
-            );
+                jid);
         }
 
         return MMU_ERROR;
@@ -202,8 +190,7 @@ t_resultado_mmu mmu_traducir_direccion(
             log_error(
                 logger,
                 "## JID: %u - MMU - Resultado de traducción inválido",
-                jid
-            );
+                jid);
         }
 
         return MMU_ERROR;
@@ -216,8 +203,7 @@ t_resultado_mmu mmu_traducir_direccion(
             log_error(
                 logger,
                 "## JID: %u - MMU - Tamaño de página no inicializado",
-                jid
-            );
+                jid);
         }
 
         return MMU_ERROR;
@@ -234,7 +220,6 @@ t_resultado_mmu mmu_traducir_direccion(
         return MMU_ERROR;
     }
 
-    
     t_paquete *paquete = crear_paquete(OBTENER_MARCO);
 
     if (paquete == NULL)
@@ -244,8 +229,7 @@ t_resultado_mmu mmu_traducir_direccion(
             log_error(
                 logger,
                 "## JID: %u - MMU - No se pudo crear paquete OBTENER_MARCO",
-                jid
-            );
+                jid);
         }
 
         return MMU_ERROR;
@@ -254,14 +238,12 @@ t_resultado_mmu mmu_traducir_direccion(
     agregar_a_paquete(
         paquete,
         &jid,
-        sizeof(uint32_t)
-    );
+        sizeof(uint32_t));
 
     agregar_a_paquete(
         paquete,
         &nro_pagina,
-        sizeof(uint32_t)
-    );
+        sizeof(uint32_t));
 
     enviar_paquete(paquete, socket_placa);
     eliminar_paquete(paquete);
@@ -275,8 +257,7 @@ t_resultado_mmu mmu_traducir_direccion(
             log_error(
                 logger,
                 "## JID: %u - MMU - Placa se desconectó al solicitar marco",
-                jid
-            );
+                jid);
         }
 
         return MMU_ERROR;
@@ -284,8 +265,8 @@ t_resultado_mmu mmu_traducir_direccion(
 
     if (codigo_operacion == RESPUESTA_PAGE_FAULT)
     {
-       //  la placa envía el número de página que produjo el Page Fault
-         
+        //  la placa envía el número de página que produjo el Page Fault
+
         t_list *valores = recibir_paquete(socket_placa);
 
         if (!lista_tiene_elementos(valores, 1))
@@ -295,8 +276,7 @@ t_resultado_mmu mmu_traducir_direccion(
                 log_error(
                     logger,
                     "## JID: %u - MMU - Respuesta de Page Fault inválida",
-                    jid
-                );
+                    jid);
             }
 
             destruir_lista_paquete(valores);
@@ -317,8 +297,7 @@ t_resultado_mmu mmu_traducir_direccion(
                 logger,
                 "## JID: %u - Page Fault - Página: %u",
                 jid,
-                *pagina_page_fault
-            );
+                *pagina_page_fault);
         }
 
         destruir_lista_paquete(valores);
@@ -335,8 +314,7 @@ t_resultado_mmu mmu_traducir_direccion(
                 "## JID: %u - MMU - Se esperaba RESPUESTA_MARCO o "
                 "RESPUESTA_PAGE_FAULT y se recibió op_code %d",
                 jid,
-                codigo_operacion
-            );
+                codigo_operacion);
         }
 
         return MMU_ERROR;
@@ -351,8 +329,7 @@ t_resultado_mmu mmu_traducir_direccion(
             log_error(
                 logger,
                 "## JID: %u - MMU - Respuesta RESPUESTA_MARCO inválida",
-                jid
-            );
+                jid);
         }
 
         destruir_lista_paquete(valores);
@@ -390,8 +367,7 @@ t_resultado_mmu mmu_traducir_direccion(
             nro_pagina,
             desplazamiento,
             marco,
-            direccion_fisica
-        );
+            direccion_fisica);
     }
 
     return MMU_OK;
@@ -399,8 +375,7 @@ t_resultado_mmu mmu_traducir_direccion(
 
 bool mmu_deslockear_paginas(
     int socket_placa,
-    uint32_t jid
-)
+    uint32_t jid)
 {
     if (socket_placa < 0)
     {
@@ -409,8 +384,7 @@ bool mmu_deslockear_paginas(
             log_error(
                 logger,
                 "## JID: %u - MMU - Socket de Placa inválido al deslockear",
-                jid
-            );
+                jid);
         }
 
         return false;
@@ -426,8 +400,7 @@ bool mmu_deslockear_paginas(
     agregar_a_paquete(
         paquete,
         &jid,
-        sizeof(uint32_t)
-    );
+        sizeof(uint32_t));
 
     enviar_paquete(paquete, socket_placa);
     eliminar_paquete(paquete);
@@ -441,8 +414,7 @@ bool mmu_deslockear_paginas(
             log_error(
                 logger,
                 "## JID: %u - MMU - Placa se desconectó al deslockear",
-                jid
-            );
+                jid);
         }
 
         return false;
@@ -456,8 +428,7 @@ bool mmu_deslockear_paginas(
                 logger,
                 "## JID: %u - MMU - Respuesta inválida al deslockear: %d",
                 jid,
-                codigo_operacion
-            );
+                codigo_operacion);
         }
 
         return false;
@@ -482,14 +453,11 @@ bool mmu_deslockear_paginas(
         log_debug(
             logger,
             "## JID: %u - MMU - Páginas deslockeadas",
-            jid
-        );
+            jid);
     }
 
     return correcto;
 }
-
-
 
 bool mmu_set_tamanio_pagina(uint32_t nuevo_tamanio_pagina)
 {
@@ -499,8 +467,7 @@ bool mmu_set_tamanio_pagina(uint32_t nuevo_tamanio_pagina)
         {
             log_error(
                 logger,
-                "MMU: El tamaño de página no puede ser cero"
-            );
+                "MMU: El tamaño de página no puede ser cero");
         }
 
         return false;
@@ -513,20 +480,17 @@ bool mmu_set_tamanio_pagina(uint32_t nuevo_tamanio_pagina)
         log_debug(
             logger,
             "MMU: Tamaño de página configurado: %u",
-            tamanio_pagina
-        );
+            tamanio_pagina);
     }
 
     return true;
 }
 
-
-// traduccion de rangos 
+// traduccion de rangos
 
 static t_segmento_fisico *crear_segmento_fisico(
     uint32_t direccion_fisica,
-    uint32_t tamanio
-)
+    uint32_t tamanio)
 {
     t_segmento_fisico *segmento = malloc(sizeof(t_segmento_fisico));
 
@@ -547,8 +511,7 @@ void mmu_destruir_segmentos(t_list *segmentos_fisicos)
     {
         list_destroy_and_destroy_elements(
             segmentos_fisicos,
-            free
-        );
+            free);
     }
 }
 
@@ -557,8 +520,7 @@ t_resultado_mmu mmu_traducir_rango(
     uint32_t jid,
     uint32_t direccion_logica,
     uint32_t tamanio,
-    t_list **segmentos_fisicos
-)
+    t_list **segmentos_fisicos)
 {
     if (segmentos_fisicos == NULL ||
         tamanio == 0 ||
@@ -587,8 +549,7 @@ t_resultado_mmu mmu_traducir_rango(
                 socket_placa,
                 jid,
                 direccion_actual,
-                &traduccion
-            );
+                &traduccion);
 
         if (resultado != MMU_OK)
         {
@@ -608,8 +569,7 @@ t_resultado_mmu mmu_traducir_rango(
         t_segmento_fisico *segmento =
             crear_segmento_fisico(
                 traduccion.direccion_fisica,
-                tamanio_segmento
-            );
+                tamanio_segmento);
 
         if (segmento == NULL)
         {
@@ -627,13 +587,12 @@ t_resultado_mmu mmu_traducir_rango(
     return MMU_OK;
 }
 
-// lectura y escritura de rangos 
+// lectura y escritura de rangos
 static t_resultado_mmu leer_segmento_fisico(
     int socket_placa,
     uint32_t jid,
     t_segmento_fisico *segmento,
-    void *destino
-)
+    void *destino)
 {
     if (segmento == NULL || destino == NULL)
     {
@@ -651,20 +610,17 @@ static t_resultado_mmu leer_segmento_fisico(
     agregar_a_paquete(
         paquete,
         &jid,
-        sizeof(uint32_t)
-    );
+        sizeof(uint32_t));
 
     agregar_a_paquete(
         paquete,
         &segmento->direccion_fisica,
-        sizeof(uint32_t)
-    );
+        sizeof(uint32_t));
 
     agregar_a_paquete(
         paquete,
         &segmento->tamanio,
-        sizeof(uint32_t)
-    );
+        sizeof(uint32_t));
 
     enviar_paquete(paquete, socket_placa);
     eliminar_paquete(paquete);
@@ -679,8 +635,7 @@ static t_resultado_mmu leer_segmento_fisico(
                 logger,
                 "## JID: %u - Respuesta inválida de lectura: %d",
                 jid,
-                codigo
-            );
+                codigo);
         }
 
         return MMU_ERROR;
@@ -696,8 +651,7 @@ static t_resultado_mmu leer_segmento_fisico(
         {
             list_destroy_and_destroy_elements(
                 respuesta,
-                free
-            );
+                free);
         }
 
         return MMU_ERROR;
@@ -709,8 +663,7 @@ static t_resultado_mmu leer_segmento_fisico(
     {
         list_destroy_and_destroy_elements(
             respuesta,
-            free
-        );
+            free);
 
         return MMU_ERROR;
     }
@@ -718,13 +671,11 @@ static t_resultado_mmu leer_segmento_fisico(
     memcpy(
         destino,
         contenido,
-        segmento->tamanio
-    );
+        segmento->tamanio);
 
     list_destroy_and_destroy_elements(
         respuesta,
-        free
-    );
+        free);
 
     return MMU_OK;
 }
@@ -733,8 +684,7 @@ static t_resultado_mmu escribir_segmento_fisico(
     int socket_placa,
     uint32_t jid,
     t_segmento_fisico *segmento,
-    const void *origen
-)
+    const void *origen)
 {
     if (segmento == NULL || origen == NULL)
     {
@@ -752,26 +702,22 @@ static t_resultado_mmu escribir_segmento_fisico(
     agregar_a_paquete(
         paquete,
         &jid,
-        sizeof(uint32_t)
-    );
+        sizeof(uint32_t));
 
     agregar_a_paquete(
         paquete,
         &segmento->direccion_fisica,
-        sizeof(uint32_t)
-    );
+        sizeof(uint32_t));
 
     agregar_a_paquete(
         paquete,
         &segmento->tamanio,
-        sizeof(uint32_t)
-    );
+        sizeof(uint32_t));
 
     agregar_a_paquete(
         paquete,
         (void *)origen,
-        segmento->tamanio
-    );
+        segmento->tamanio);
 
     enviar_paquete(paquete, socket_placa);
     eliminar_paquete(paquete);
@@ -786,8 +732,7 @@ static t_resultado_mmu escribir_segmento_fisico(
                 logger,
                 "## JID: %u - Respuesta inválida de escritura: %d",
                 jid,
-                codigo
-            );
+                codigo);
         }
 
         return MMU_ERROR;
@@ -801,8 +746,7 @@ t_resultado_mmu mmu_leer_rango(
     uint32_t jid,
     uint32_t direccion_logica,
     uint32_t tamanio,
-    void *buffer_destino
-)
+    void *buffer_destino)
 {
     if (buffer_destino == NULL || tamanio == 0)
     {
@@ -817,8 +761,7 @@ t_resultado_mmu mmu_leer_rango(
             jid,
             direccion_logica,
             tamanio,
-            &segmentos
-        );
+            &segmentos);
 
     if (resultado != MMU_OK)
     {
@@ -838,8 +781,7 @@ t_resultado_mmu mmu_leer_rango(
                 jid,
                 segmento,
                 (char *)buffer_destino +
-                    desplazamiento_buffer
-            );
+                    desplazamiento_buffer);
 
         if (resultado != MMU_OK)
         {
@@ -860,8 +802,7 @@ t_resultado_mmu mmu_escribir_rango(
     uint32_t jid,
     uint32_t direccion_logica,
     uint32_t tamanio,
-    const void *buffer_origen
-)
+    const void *buffer_origen)
 {
     if (buffer_origen == NULL || tamanio == 0)
     {
@@ -876,8 +817,7 @@ t_resultado_mmu mmu_escribir_rango(
             jid,
             direccion_logica,
             tamanio,
-            &segmentos
-        );
+            &segmentos);
 
     if (resultado != MMU_OK)
     {
@@ -897,8 +837,7 @@ t_resultado_mmu mmu_escribir_rango(
                 jid,
                 segmento,
                 (const char *)buffer_origen +
-                    desplazamiento_buffer
-            );
+                    desplazamiento_buffer);
 
         if (resultado != MMU_OK)
         {
@@ -918,8 +857,7 @@ t_resultado_mmu mmu_leer_uint32(
     int socket_placa,
     uint32_t jid,
     uint32_t direccion_logica,
-    uint32_t *valor
-)
+    uint32_t *valor)
 {
     if (valor == NULL)
     {
@@ -931,22 +869,19 @@ t_resultado_mmu mmu_leer_uint32(
         jid,
         direccion_logica,
         sizeof(uint32_t),
-        valor
-    );
+        valor);
 }
 
 t_resultado_mmu mmu_escribir_uint32(
     int socket_placa,
     uint32_t jid,
     uint32_t direccion_logica,
-    uint32_t valor
-)
+    uint32_t valor)
 {
     return mmu_escribir_rango(
         socket_placa,
         jid,
         direccion_logica,
         sizeof(uint32_t),
-        &valor
-    );
+        &valor);
 }
