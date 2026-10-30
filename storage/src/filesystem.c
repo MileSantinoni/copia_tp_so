@@ -395,7 +395,49 @@ for (uint32_t i = cant_reusados; i < cant_nuevos; i++)
        free(bloques);
        pthread_mutex_unlock(&mutex_filesystem);
       return true;
-    
+  }
+  // info, lee el superbloque del disco y lo muestra
+
+  void mostrar_superbloque(void){
+    pthread_mutex_lock(&mutex_filesystem);
+    void *bloque = malloc(geometria.tam_bloque);
+    esperar_acceso_bloque();
+    fseek(volumen,0,SEEK_SET);
+    fread(bloque, geometria.tam_bloque,1,volumen);
+    pthread_mutex_unlock(&mutex_filesystem);
+
+    // los mismos desplazamientos con los que los escribimos
+    char firma[TAM_FIRMA + 1] = {0}; // +1 para el '\0' y poder imprimirlo con %s
+
+    uint32_t tam_bloque ,cant_bloques,bloques_directorio;
+    memcpy(firma, bloque, TAM_FIRMA);
+    memcpy(&tam_bloque, bloque + 11, sizeof(uint32_t));
+    memcpy(&cant_bloques, bloque + 15, sizeof(uint32_t));
+    memcpy(&bloques_directorio, bloque + 19, sizeof(uint32_t));
+    free(bloque);
+
+    printf("Superbloque:\n");
+    printf("  Firma:                 %s\n", firma);
+    printf("  Tamanio de bloque:     %u bytes\n", tam_bloque);
+    printf("  Cantidad de bloques:   %u\n", cant_bloques);
+    printf("  Bloques de directorio: %u\n", bloques_directorio);
+
+  }
+  void listar_checkpoints(void){
+    pthread_mutex_lock(&mutex_filesystem);
+    t_entrada_directorio entrada;
+    int ocupadas = 0;
+    printf("%-7s %-23s %10s %13s\n", "Entrada", "Nombre", "Tamanio", "Primer bloque");
+    for(uint32_t i =0; i<geometria.entradas_directorio; i++){
+      leer_entrada_directorio(i, &entrada);
+      if(entrada.estado == 1){
+          printf("%-7u %-23s %10u %13u\n", i, entrada.nombre, entrada.tamanio, entrada.primer_bloque);
+            ocupadas++;
+      }
+    }
+    printf("%d checkpoint(s)\n", ocupadas);
+
+    pthread_mutex_unlock(&mutex_filesystem);
   }
 
 

@@ -59,4 +59,6 @@ void escribir_bloque(uint32_t nro_bloque, void *buffer, char *checkpoint);
 bool guardar_checkpoint(char *nombre, void *contenido, uint32_t tamanio);
 void *leer_checkpoint(char *nombre, uint32_t *tamanio);
 bool eliminar_checkpoint(char *nombre);
+void mostrar_superbloque(void);
+void listar_checkpoints(void);
 #endif

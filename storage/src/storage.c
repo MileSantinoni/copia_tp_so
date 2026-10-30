@@ -4,6 +4,7 @@
 #include "storage_server.h"
 #include "filesystem.h"   
 #include <utils/conexion.h>
+#include "consola.h"
 
 t_log *logger;
 t_config *config;
@@ -36,6 +37,7 @@ int main(int argc, char *argv[])
         return EXIT_FAILURE;
     }
     iniciar_filesystem();   
+      iniciar_consola();
 
     // arranque del servidor
     int server_fd = iniciar_servidor(storage_config->PUERTO_ESCUCHA);
