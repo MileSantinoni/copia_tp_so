@@ -14,6 +14,23 @@
 #include <utils/comunicacion.h>
 #include <utils/protocolo.h>
 
+static t_resultado_ejecucion ejecutar_syscall_memoria(
+    t_instruccion *instruccion,
+    uint32_t jid,
+    int socket_placa,
+    int socket_dispatch,
+    t_motivo_desalojo motivo);
+
+static t_resultado_ejecucion syscall_alloc(
+    t_instruccion *instruccion,
+    uint32_t jid,
+    int socket_dispatch);
+
+static t_resultado_ejecucion syscall_free(
+    t_instruccion *instruccion,
+    uint32_t jid,
+    int socket_dispatch);
+
 void ciclo_de_instruccion(int socket_dispatch, int socket_placa, uint32_t jid)
 {                       // denominado fetch, se encarga de captar la proxima instruccion
     int ejecutando = 1; // seteamos en true
@@ -107,8 +124,11 @@ void ciclo_de_instruccion(int socket_dispatch, int socket_placa, uint32_t jid)
 
         if (resultado == EJECUCION_BLOQUEADA)
         {
-            if (registros_cpu.PC == pc_anterior)
-                registros_cpu.PC++;
+            // if (registros_cpu.PC == pc_anterior)
+            // {
+            //     registros_cpu.PC++;
+            // }
+
             ejecutando = 0;
             continue;
         }
@@ -267,71 +287,6 @@ static t_resultado_ejecucion preparar_accesos(
         }
     }
     return EJECUCION_CONTINUA;
-}
-
-static t_resultado_ejecucion ejecutar_syscall_memoria(
-    t_instruccion *instruccion,
-    uint32_t jid,
-    int socket_placa,
-    int socket_dispatch,
-    t_motivo_desalojo motivo)
-{
-    uint32_t direccion;
-    uint32_t tamanio;
-    char *nombre = NULL;
-    if (motivo == SYSCALL_LOAD_BATCH)
-    {
-        if (instruccion->cantidad_parametros != 3)
-        {
-            log_error(logger, "LOAD_BATCH requiere archivo, dirección y tamaño");
-            return EJECUCION_ERROR;
-        }
-        nombre = instruccion->parametros[0];
-        direccion = obtener_valor_operando(instruccion->parametros[1]);
-        tamanio = obtener_valor_operando(instruccion->parametros[2]);
-    }
-    else
-    {
-        if (instruccion->cantidad_parametros != 2)
-        {
-            log_error(
-                logger,
-                "%s requiere dirección y tamaño",
-                motivo == SYSCALL_LABEL ? "LABEL" : "REPORT");
-            return EJECUCION_ERROR;
-        }
-        direccion = obtener_valor_operando(instruccion->parametros[0]);
-        tamanio = obtener_valor_operando(instruccion->parametros[1]);
-    }
-    if (tamanio == 0)
-    {
-        log_error(logger, "## JID: %u - Tamaño de syscall inválido", jid);
-        return EJECUCION_ERROR;
-    }
-    t_list *segmentos = NULL;
-    t_resultado_mmu resultado = mmu_traducir_rango(
-        socket_placa,
-        jid,
-        direccion,
-        tamanio,
-        &segmentos);
-    if (resultado != MMU_OK)
-    {
-        mmu_destruir_segmentos(segmentos);
-        return resultado == MMU_PAGE_FAULT
-                   ? EJECUCION_PAGE_FAULT
-                   : EJECUCION_ERROR;
-    }
-    enviar_desalojo_syscall_memoria(
-        socket_dispatch,
-        jid,
-        &registros_cpu,
-        motivo,
-        nombre,
-        tamanio,
-        segmentos);
-    mmu_destruir_segmentos(segmentos);
-    return EJECUCION_BLOQUEADA;
 }
 
 // INIT_JOB es una syscall no bloqueante: el Core se la pide al Planificador,
@@ -513,6 +468,22 @@ t_resultado_ejecucion ejecutar_instruccion(
         return EJECUCION_CONTINUA;
     }
 
+    if (strcmp(instruccion->nombre, "ALLOC") == 0)
+    {
+        return syscall_alloc(
+            instruccion,
+            jid,
+            socket_dispatch);
+    }
+
+    if (strcmp(instruccion->nombre, "FREE") == 0)
+    {
+        return syscall_free(
+            instruccion,
+            jid,
+            socket_dispatch);
+    }
+
     // TODO: revisar estas implementaciones de forward, backward y update
     if (strcmp(instruccion->nombre, "FORWARD") == 0)
     {
@@ -570,7 +541,10 @@ t_resultado_ejecucion ejecutar_instruccion(
         if (resultado != MMU_OK)
         {
             mmu_deslockear_paginas(socket_placa, jid);
-            return EJECUCION_ERROR;
+
+            return resultado == MMU_PAGE_FAULT
+                       ? EJECUCION_PAGE_FAULT
+                       : EJECUCION_ERROR;
         }
 
         resultado =
@@ -580,16 +554,13 @@ t_resultado_ejecucion ejecutar_instruccion(
                 direccion_entrada,
                 &entrada);
 
-        // if (resultado == MMU_PAGE_FAULT)
-        // {
-        //     mmu_deslockear_paginas(socket_placa, jid);
-        //     return EJECUCION_PAGE_FAULT;
-        // }
-
         if (resultado != MMU_OK)
         {
             mmu_deslockear_paginas(socket_placa, jid);
-            return EJECUCION_ERROR;
+
+            return resultado == MMU_PAGE_FAULT
+                       ? EJECUCION_PAGE_FAULT
+                       : EJECUCION_ERROR;
         }
 
         resultado =
@@ -599,16 +570,13 @@ t_resultado_ejecucion ejecutar_instruccion(
                 direccion_acumulador,
                 &acumulador);
 
-        //  if (resultado == MMU_PAGE_FAULT)
-        // {
-        //     mmu_deslockear_paginas(socket_placa, jid);
-        //     return EJECUCION_PAGE_FAULT;
-        // }
-
         if (resultado != MMU_OK)
         {
             mmu_deslockear_paginas(socket_placa, jid);
-            return EJECUCION_ERROR;
+
+            return resultado == MMU_PAGE_FAULT
+                       ? EJECUCION_PAGE_FAULT
+                       : EJECUCION_ERROR;
         }
 
         uint32_t nuevo_acumulador =
@@ -621,16 +589,13 @@ t_resultado_ejecucion ejecutar_instruccion(
                 direccion_salida,
                 nuevo_acumulador);
 
-        // // if (resultado == MMU_PAGE_FAULT)
-        // {
-        //     mmu_deslockear_paginas(socket_placa, jid);
-        //     return EJECUCION_PAGE_FAULT;
-        // }
-
         if (resultado != MMU_OK)
         {
             mmu_deslockear_paginas(socket_placa, jid);
-            return EJECUCION_ERROR;
+
+            return resultado == MMU_PAGE_FAULT
+                       ? EJECUCION_PAGE_FAULT
+                       : EJECUCION_ERROR;
         }
 
         registros_cpu.E1 = pesos;
@@ -881,24 +846,26 @@ t_resultado_ejecucion ejecutar_instruccion(
             socket_placa,
             socket_dispatch,
             SYSCALL_LOAD_BATCH);
-        if (strcmp(instruccion->nombre, "LABEL") == 0)
-        {
-            return ejecutar_syscall_memoria(
-                instruccion,
-                jid,
-                socket_placa,
-                socket_dispatch,
-                SYSCALL_LABEL);
-        }
-        if (strcmp(instruccion->nombre, "REPORT") == 0)
-        {
-            return ejecutar_syscall_memoria(
-                instruccion,
-                jid,
-                socket_placa,
-                socket_dispatch,
-                SYSCALL_REPORT);
-        }
+    }
+
+    if (strcmp(instruccion->nombre, "LABEL") == 0)
+    {
+        return ejecutar_syscall_memoria(
+            instruccion,
+            jid,
+            socket_placa,
+            socket_dispatch,
+            SYSCALL_LABEL);
+    }
+
+    if (strcmp(instruccion->nombre, "REPORT") == 0)
+    {
+        return ejecutar_syscall_memoria(
+            instruccion,
+            jid,
+            socket_placa,
+            socket_dispatch,
+            SYSCALL_REPORT);
     }
 
     log_error(logger, "Instruccion desconocida o no implementada");
@@ -907,29 +874,191 @@ t_resultado_ejecucion ejecutar_instruccion(
     return EJECUCION_CONTINUA;
 }
 
-//  // FORWARD
-//         static t_resultado_ejecucion ejecutar_forward(
-//             t_instruccion * instruccion,
-//             uint32_t jid,
-//             int socket_placa)
-//         {
+static t_resultado_ejecucion ejecutar_syscall_memoria(
+    t_instruccion *instruccion,
+    uint32_t jid,
+    int socket_placa,
+    int socket_dispatch,
+    t_motivo_desalojo motivo)
+{
+    uint32_t direccion;
+    uint32_t tamanio;
+    char *nombre = NULL;
+    if (motivo == SYSCALL_LOAD_BATCH)
+    {
+        if (instruccion->cantidad_parametros != 3)
+        {
+            log_error(logger, "LOAD_BATCH requiere archivo, dirección y tamaño");
+            return EJECUCION_ERROR;
+        }
+        nombre = instruccion->parametros[0];
+        direccion = obtener_valor_operando(instruccion->parametros[1]);
+        tamanio = obtener_valor_operando(instruccion->parametros[2]);
+    }
+    else
+    {
+        if (instruccion->cantidad_parametros != 2)
+        {
+            log_error(
+                logger,
+                "%s requiere dirección y tamaño",
+                motivo == SYSCALL_LABEL ? "LABEL" : "REPORT");
+            return EJECUCION_ERROR;
+        }
+        direccion = obtener_valor_operando(instruccion->parametros[0]);
+        tamanio = obtener_valor_operando(instruccion->parametros[1]);
+    }
+    if (tamanio == 0)
+    {
+        log_error(logger, "## JID: %u - Tamaño de syscall inválido", jid);
+        return EJECUCION_ERROR;
+    }
+    t_list *segmentos = NULL;
+    t_resultado_mmu resultado = mmu_traducir_rango(
+        socket_placa,
+        jid,
+        direccion,
+        tamanio,
+        &segmentos);
+    if (resultado != MMU_OK)
+    {
+        mmu_destruir_segmentos(segmentos);
+        return resultado == MMU_PAGE_FAULT
+                   ? EJECUCION_PAGE_FAULT
+                   : EJECUCION_ERROR;
+    }
 
-//         }
+    registros_cpu.PC++;
 
-//  // BACKWARD
-//         static t_resultado_ejecucion ejecutar_backward(
-//             t_instruccion * instruccion,
-//             uint32_t jid,
-//             int socket_placa)
-//         {
+    enviar_desalojo_syscall_memoria(
+        socket_dispatch,
+        jid,
+        &registros_cpu,
+        motivo,
+        nombre,
+        tamanio,
+        segmentos);
+    mmu_destruir_segmentos(segmentos);
+    return EJECUCION_BLOQUEADA;
+}
 
-//         }
+static t_resultado_ejecucion syscall_alloc(
+    t_instruccion *instruccion,
+    uint32_t jid,
+    int socket_dispatch)
+{
+    if (instruccion->cantidad_parametros != 2)
+    {
+        log_error(logger, "ALLOC requiere tamaño y registro destino");
+        return EJECUCION_ERROR;
+    }
 
-//  // UPDATE
-//         static t_resultado_ejecucion ejecutar_backward(
-//             t_instruccion * instruccion,
-//             uint32_t jid,
-//             int socket_placa)
-//         {
+    uint32_t tamanio =
+        obtener_valor_operando(instruccion->parametros[0]);
 
-//         }
+    char *registro_destino =
+        instruccion->parametros[1];
+
+    if (tamanio == 0)
+    {
+        log_error(logger, "ALLOC no puede solicitar tamaño cero");
+        return EJECUCION_ERROR;
+    }
+
+    t_paquete *paquete = crear_paquete(SYSCALL_ALLOC);
+
+    agregar_a_paquete(paquete, &jid, sizeof(uint32_t));
+    agregar_a_paquete(paquete, &tamanio, sizeof(uint32_t));
+    agregar_a_paquete(
+        paquete,
+        registro_destino,
+        strlen(registro_destino) + 1);
+
+    enviar_paquete(paquete, socket_dispatch);
+    eliminar_paquete(paquete);
+
+    int codigo = recibir_operacion(socket_dispatch);
+
+    if (codigo != RESPUESTA_SYSCALL)
+    {
+        log_error(
+            logger,
+            "## JID: %u - Respuesta inválida para ALLOC: %d",
+            jid,
+            codigo);
+
+        return EJECUCION_ERROR;
+    }
+
+    t_list *respuesta = recibir_paquete(socket_dispatch);
+
+    if (respuesta == NULL || list_size(respuesta) < 1)
+    {
+        if (respuesta != NULL)
+            list_destroy_and_destroy_elements(respuesta, free);
+
+        return EJECUCION_ERROR;
+    }
+
+    uint32_t direccion_logica =
+        *(uint32_t *)list_get(respuesta, 0);
+
+    if (!asignar_valor_registro(registro_destino, direccion_logica))
+    {
+        log_error(
+            logger,
+            "## JID: %u - Registro destino inválido: %s",
+            jid,
+            registro_destino);
+
+        list_destroy_and_destroy_elements(respuesta, free);
+        return EJECUCION_ERROR;
+    }
+
+    list_destroy_and_destroy_elements(respuesta, free);
+
+    return EJECUCION_CONTINUA;
+}
+
+static t_resultado_ejecucion syscall_free(
+    t_instruccion *instruccion,
+    uint32_t jid,
+    int socket_dispatch)
+{
+    if (instruccion->cantidad_parametros != 1)
+    {
+        log_error(logger, "FREE requiere una dirección lógica");
+        return EJECUCION_ERROR;
+    }
+
+    uint32_t direccion =
+        obtener_valor_operando(instruccion->parametros[0]);
+
+    t_paquete *paquete = crear_paquete(SYSCALL_FREE);
+
+    agregar_a_paquete(paquete, &jid, sizeof(uint32_t));
+    agregar_a_paquete(paquete, &direccion, sizeof(uint32_t));
+
+    enviar_paquete(paquete, socket_dispatch);
+    eliminar_paquete(paquete);
+
+    int codigo = recibir_operacion(socket_dispatch);
+
+    if (codigo != RESPUESTA_SYSCALL)
+    {
+        log_error(
+            logger,
+            "## JID: %u - Respuesta inválida para FREE: %d",
+            jid,
+            codigo);
+
+        return EJECUCION_ERROR;
+    }
+
+    t_list *respuesta = recibir_paquete(socket_dispatch);
+
+    if (respuesta != NULL)
+        list_destroy_and_destroy_elements(respuesta, free);
+
+    return EJECUCION_CONTINUA;
+}
